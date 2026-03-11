@@ -13,8 +13,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, name: string, company: string) => Promise<{ error: string | null }>;
+  signInWithMicrosoft: () => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
 }
 

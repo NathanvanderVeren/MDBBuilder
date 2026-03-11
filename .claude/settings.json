@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const c = require\\(''@prisma/client''\\); console.log\\(Object.keys\\(c\\).slice\\(0, 20\\)\\)\")"
+    ]
+  }
+}

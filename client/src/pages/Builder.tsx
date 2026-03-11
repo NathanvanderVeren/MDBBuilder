@@ -368,6 +368,58 @@ export default function Builder() {
     }
   }, [state]);
 
+  const handleSaveProject = useCallback(async () => {
+    if (state.sections.length === 0) {
+      toast.error("Add at least one section before saving");
+      return;
+    }
+    setSaving(true);
+    try {
+      const name = state.info.projectName.trim() || "Untitled MDB";
+      const { id, error } = await saveProject(name, state, currentProjectId ?? undefined);
+      if (error) {
+        toast.error("Save failed", { description: error });
+        return;
+      }
+      if (id && !currentProjectId) setCurrentProjectId(id);
+      toast.success("Project saved", { description: name });
+    } finally {
+      setSaving(false);
+    }
+  }, [state, currentProjectId]);
+
+  const handleOpenProjects = useCallback(async () => {
+    setProjectsOpen(true);
+    setLoadingProjects(true);
+    const { projects, error } = await listProjects();
+    if (error) toast.error("Failed to load projects", { description: error });
+    else setSavedProjects(projects);
+    setLoadingProjects(false);
+  }, []);
+
+  const handleLoadProject = useCallback(async (projectId: string) => {
+    const { data, error } = await loadProject(projectId);
+    if (error || !data) {
+      toast.error("Failed to load project", { description: error ?? "No data" });
+      return;
+    }
+    loadState(data as Parameters<typeof loadState>[0]);
+    setCurrentProjectId(projectId);
+    setProjectsOpen(false);
+    toast.success("Project loaded");
+  }, [loadState]);
+
+  const handleDeleteProject = useCallback(async (projectId: string, name: string) => {
+    const { error } = await deleteProject(projectId);
+    if (error) {
+      toast.error("Failed to delete project", { description: error });
+      return;
+    }
+    setSavedProjects((prev) => prev.filter((p) => p.id !== projectId));
+    if (currentProjectId === projectId) setCurrentProjectId(null);
+    toast.success(`Deleted "${name}"`);
+  }, [currentProjectId]);
+
   const categories = state.chapterOrder;
 
   return (

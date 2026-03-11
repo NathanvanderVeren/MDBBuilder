@@ -1,6 +1,9 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 interface User {
+  id: string;
   name: string;
   email: string;
   company: string;
@@ -9,30 +12,62 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (user: User) => void;
-  logout: () => void;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, name: string, company: string) => Promise<{ error: string | null }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem("mdb-user");
-    return stored ? JSON.parse(stored) : null;
-  });
+function mapSupabaseUser(supabaseUser: SupabaseUser): User {
+  return {
+    id: supabaseUser.id,
+    name: supabaseUser.user_metadata?.name ?? supabaseUser.email?.split("@")[0] ?? "",
+    email: supabaseUser.email ?? "",
+    company: supabaseUser.user_metadata?.company ?? "",
+  };
+}
 
-  const login = useCallback((userData: User) => {
-    setUser(userData);
-    localStorage.setItem("mdb-user", JSON.stringify(userData));
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ? mapSupabaseUser(session.user) : null);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ? mapSupabaseUser(session.user) : null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem("mdb-user");
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string, name: string, company: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name, company } },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, signIn, signUp, logout }}>
       {children}
     </AuthContext.Provider>
   );

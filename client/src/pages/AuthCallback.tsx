@@ -29,9 +29,9 @@ export default function AuthCallback() {
       if (error) {
         setError(error.message);
       } else {
-        // Full page reload so Supabase reads the new session from
-        // localStorage before any auth guard runs.
-        window.location.href = "/builder";
+        // Reload to root so Landing page detects the new session and
+        // redirects to /builder — avoids Builder's auth guard race condition.
+        window.location.href = "/";
       }
     });
   }, [navigate]);

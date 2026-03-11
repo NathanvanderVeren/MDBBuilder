@@ -7,12 +7,31 @@ datasource db {
 }
 
 model Project {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  name      String
-  data      Json
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  projectNumber         String    @map("project_number")
+  projectName           String    @map("project_name")
+  customerName          String    @map("customer_name")
+  customerProjectNumber String?   @map("customer_project_number")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  products              Product[]
 
   @@map("projects")
+}
+
+model Product {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId             String   @map("project_id") @db.Uuid
+  productName           String   @map("product_name")
+  tagNumber             String   @map("tag_number")
+  mdbDocumentNumber     String   @map("mdb_document_number")
+  supplierName          String?  @map("supplier_name")
+  supplierProjectNumber String?  @map("supplier_project_number")
+  mdbData               Json?    @map("mdb_data")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("products")
 }

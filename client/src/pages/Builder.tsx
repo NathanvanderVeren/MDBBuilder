@@ -108,7 +108,8 @@ export default function Builder() {
   const [dragPreviewTarget, setDragPreviewTarget] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Redirect if not logged in
+  // Wait for auth check before redirecting
+  if (authLoading) return null;
   if (!user) {
     navigate("/");
     return null;

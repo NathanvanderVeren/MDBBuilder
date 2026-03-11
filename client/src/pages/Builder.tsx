@@ -52,9 +52,9 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { generatePdf } from "@/lib/pdf-generator";
-import { listProjects, saveProject, loadProject, deleteProject, type SavedProject } from "@/lib/projects";
+import { getProduct, saveMdbData, type ProductWithMdb } from "@/lib/products";
 
 const LOGO_PNG =
   "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/BizzBit%20Logo%20large_88d9f1c2.png";

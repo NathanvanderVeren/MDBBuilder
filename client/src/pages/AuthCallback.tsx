@@ -11,8 +11,8 @@ export default function AuthCallback() {
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.replace("#", ""));
     const code = params.get("code") ?? hashParams.get("code");
-    const errorParam = params.get("error");
-    const errorDescription = params.get("error_description");
+    const errorParam = params.get("error") ?? hashParams.get("error");
+    const errorDescription = params.get("error_description") ?? hashParams.get("error_description");
 
     if (errorParam) {
       const msg = errorDescription

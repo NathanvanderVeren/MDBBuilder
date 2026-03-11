@@ -7,16 +7,26 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code");
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const errorParam = params.get("error");
+    const errorDescription = params.get("error_description");
+
+    if (errorParam) {
+      const msg = errorDescription
+        ? decodeURIComponent(errorDescription)
+        : errorParam;
+      setError(msg);
+      return;
+    }
+
     if (!code) {
-      // No code — might be a direct visit; go home
       navigate("/");
       return;
     }
 
     supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
       if (error) {
-        console.error("Auth callback error:", error);
         setError(error.message);
       } else {
         navigate("/builder");

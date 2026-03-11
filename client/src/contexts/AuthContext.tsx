@@ -47,16 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
-  }, []);
-
-  const signUp = useCallback(async (email: string, password: string, name: string, company: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name, company } },
+  const signInWithMicrosoft = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: { redirectTo: `${window.location.origin}/builder` },
     });
     return { error: error?.message ?? null };
   }, []);
@@ -66,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, signIn, signUp, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, signInWithMicrosoft, logout }}>
       {children}
     </AuthContext.Provider>
   );

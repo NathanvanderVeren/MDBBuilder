@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { MdbProvider } from "./contexts/MdbContext";
 import Landing from "./pages/Landing";
+import Projects from "./pages/Projects";
 import Builder from "./pages/Builder";
 import AuthCallback from "./pages/AuthCallback";
 
@@ -14,7 +15,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/builder" component={Builder} />
+      <Route path="/projects" component={Projects} />
+      <Route path="/builder/:productId" component={Builder} />
       <Route path="/auth/callback" component={AuthCallback} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

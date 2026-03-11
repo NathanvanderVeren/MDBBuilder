@@ -1159,17 +1159,41 @@ export default function Builder() {
               <div className="font-bold text-[7px] text-gray-600 mb-1">
                 TABLE OF CONTENTS
               </div>
-              {state.sections.slice(0, 12).map((s, i) => (
-                <div key={s.id} className="flex items-center gap-1 mb-0.5">
-                  <span className="text-gray-400">{i + 1}.</span>
-                  <span className="truncate">{s.title}</span>
-                </div>
-              ))}
-              {state.sections.length > 12 && (
-                <div className="text-gray-400 mt-0.5">
-                  +{state.sections.length - 12} more...
-                </div>
-              )}
+              {(() => {
+                const nonIndex = state.sections.filter(s => s.id !== "mdb-index");
+                const rows: React.ReactNode[] = [];
+                let chapterNum = 0;
+                let shown = 0;
+                const max = 18;
+                for (const category of state.chapterOrder) {
+                  if (shown >= max) break;
+                  chapterNum++;
+                  const chapterTitle = state.chapterMeta[category]?.title || CATEGORY_LABELS[category] || category;
+                  rows.push(
+                    <div key={`ch-${category}`} className="flex gap-1 mb-0.5">
+                      <span className="text-gray-500 font-bold shrink-0">{chapterNum}.</span>
+                      <span className="font-bold text-gray-700 truncate">{chapterTitle}</span>
+                    </div>
+                  );
+                  shown++;
+                  const subs = nonIndex.filter(s => s.category === category);
+                  subs.forEach((s, si) => {
+                    if (shown >= max) return;
+                    rows.push(
+                      <div key={s.id} className="flex gap-1 mb-0.5 pl-2">
+                        <span className="text-gray-400 shrink-0">{chapterNum}.{si + 1}</span>
+                        <span className="text-gray-500 truncate">{s.title}</span>
+                      </div>
+                    );
+                    shown++;
+                  });
+                }
+                const total = state.chapterOrder.length + nonIndex.length;
+                if (total > max) rows.push(
+                  <div key="more" className="text-gray-400 mt-0.5">+{total - max} more…</div>
+                );
+                return rows;
+              })()}
             </div>
           </div>
         </aside>

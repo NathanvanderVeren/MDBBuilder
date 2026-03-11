@@ -18,6 +18,8 @@ import {
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import LoginDialog from "@/components/LoginDialog";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/mdb-preview-mockup-bu2sriEjQDjc3bPUT3wTMk.webp";
 const FEATURE_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/feature-sections-Em7wVMXftxJxiqWD28x568.webp";

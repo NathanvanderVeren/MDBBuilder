@@ -72,6 +72,28 @@ export default function Landing() {
   const [, navigate] = useLocation();
   const [loginOpen, setLoginOpen] = useState(false);
 
+  // Handle OAuth code landing on root URL (fallback if /auth/callback redirect fails)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const errorParam = params.get("error");
+
+    if (errorParam) {
+      const desc = params.get("error_description");
+      toast.error("Sign-in failed", { description: desc ? decodeURIComponent(desc) : errorParam });
+      window.history.replaceState({}, "", "/");
+      return;
+    }
+
+    if (code) {
+      window.history.replaceState({}, "", "/");
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) toast.error("Sign-in failed", { description: error.message });
+        // On success, onAuthStateChange fires → isAuthenticated becomes true → redirects below
+      });
+    }
+  }, []);
+
   useEffect(() => {
     if (!loading && isAuthenticated) {
       navigate("/builder");

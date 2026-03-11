@@ -1,7 +1,3 @@
-/**
- * LoginDialog — Simulated Microsoft OAuth login
- * Industrial Blueprint design with GDPR-compliant opt-in
- */
 import {
   Dialog,
   DialogContent,
@@ -11,7 +7,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -23,128 +18,153 @@ interface LoginDialogProps {
 }
 
 export default function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
-  const { login } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [, navigate] = useLocation();
-  const [name, setName] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [company, setCompany] = useState("");
-  const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const isValid = name.trim() && email.trim() && email.includes("@") && consent;
+  const isValid =
+    email.trim() &&
+    email.includes("@") &&
+    password.length >= 6 &&
+    (mode === "signin" || name.trim());
 
-  const handleLogin = () => {
+  const handleSubmit = async () => {
     if (!isValid) return;
     setLoading(true);
-    // Simulate OAuth delay
-    setTimeout(() => {
-      login({ name: name.trim(), email: email.trim(), company: company.trim() });
+    try {
+      if (mode === "signin") {
+        const { error } = await signIn(email.trim(), password);
+        if (error) {
+          toast.error("Sign in failed", { description: error });
+          return;
+        }
+        toast.success("Welcome back!");
+        onOpenChange(false);
+        navigate("/builder");
+      } else {
+        const { error } = await signUp(email.trim(), password, name.trim(), company.trim());
+        if (error) {
+          toast.error("Sign up failed", { description: error });
+          return;
+        }
+        toast.success("Account created!", {
+          description: "Check your email to confirm your account, then sign in.",
+        });
+        setMode("signin");
+      }
+    } finally {
       setLoading(false);
-      onOpenChange(false);
-      toast.success("Welcome to MDB Builder!", {
-        description: `Signed in as ${email.trim()}`,
-      });
-      navigate("/builder");
-    }, 800);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSubmit();
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3 text-xl">
-            <div className="h-10 w-10 rounded-lg bg-[#00A4EF]/10 flex items-center justify-center">
-              <svg className="h-5 w-5" viewBox="0 0 21 21" fill="none">
-                <rect width="10" height="10" fill="#F25022" />
-                <rect x="11" width="10" height="10" fill="#7FBA00" />
-                <rect y="11" width="10" height="10" fill="#00A4EF" />
-                <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
-              </svg>
-            </div>
-            Sign in with Microsoft
+          <DialogTitle className="text-xl">
+            {mode === "signin" ? "Sign in to MDB Builder" : "Create an account"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
-          <p className="text-sm text-muted-foreground">
-            Use your work email to get started. No password needed — we use
-            Microsoft single sign-on for a seamless experience.
-          </p>
+        <div className="space-y-4 mt-2" onKeyDown={handleKeyDown}>
+          {mode === "signup" && (
+            <>
+              <div>
+                <Label htmlFor="name" className="text-sm mb-1.5 block">Full Name</Label>
+                <Input
+                  id="name"
+                  placeholder="John van der Berg"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="bg-input/50"
+                />
+              </div>
+              <div>
+                <Label htmlFor="company" className="text-sm mb-1.5 block">
+                  Company <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="company"
+                  placeholder="Your company name"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="bg-input/50"
+                />
+              </div>
+            </>
+          )}
 
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="name" className="text-sm mb-1.5 block">Full Name</Label>
-              <Input
-                id="name"
-                placeholder="John van der Berg"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="bg-input/50"
-              />
-            </div>
-            <div>
-              <Label htmlFor="email" className="text-sm mb-1.5 block">Work Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="j.vanderberg@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-input/50"
-              />
-            </div>
-            <div>
-              <Label htmlFor="company" className="text-sm mb-1.5 block">
-                Company <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="company"
-                placeholder="Your company name"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="bg-input/50"
-              />
-            </div>
+          <div>
+            <Label htmlFor="email" className="text-sm mb-1.5 block">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="j.vanderberg@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-input/50"
+            />
           </div>
 
-          {/* GDPR Consent — subtle but compliant */}
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border/50">
-            <Checkbox
-              id="consent"
-              checked={consent}
-              onCheckedChange={(c) => setConsent(c === true)}
-              className="mt-0.5"
+          <div>
+            <Label htmlFor="password" className="text-sm mb-1.5 block">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Minimum 6 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="bg-input/50"
             />
-            <label htmlFor="consent" className="text-xs text-muted-foreground leading-relaxed cursor-pointer">
-              I agree to the{" "}
-              <span className="text-foreground underline underline-offset-2">
-                Terms of Service
-              </span>{" "}
-              and give BizzBit permission to occasionally send me relevant tips
-              about quality management and MDB best practices. You can
-              unsubscribe at any time.
-            </label>
           </div>
 
           <Button
             className="w-full"
             size="lg"
             disabled={!isValid || loading}
-            onClick={handleLogin}
+            onClick={handleSubmit}
           >
             {loading ? (
               <span className="flex items-center gap-2">
                 <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                Signing in...
+                {mode === "signin" ? "Signing in..." : "Creating account..."}
               </span>
             ) : (
-              "Continue"
+              mode === "signin" ? "Sign in" : "Create account"
             )}
           </Button>
 
-          <p className="text-[11px] text-muted-foreground/50 text-center">
-            This tool generates document structure only. No project data,
-            certificates, or sensitive information is processed or stored.
+          <p className="text-sm text-center text-muted-foreground">
+            {mode === "signin" ? (
+              <>
+                No account yet?{" "}
+                <button
+                  className="text-foreground underline underline-offset-2 hover:text-primary transition-colors"
+                  onClick={() => setMode("signup")}
+                >
+                  Create one
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  className="text-foreground underline underline-offset-2 hover:text-primary transition-colors"
+                  onClick={() => setMode("signin")}
+                >
+                  Sign in
+                </button>
+              </>
+            )}
           </p>
         </div>
       </DialogContent>

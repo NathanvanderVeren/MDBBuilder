@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { requireAuth } from "./middleware/auth.js";
 import projectsRouter from "./routes/projects.js";
+import productsRouter from "./routes/products.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

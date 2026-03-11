@@ -1,14 +1,14 @@
 import { supabase } from "./supabase";
 
-export interface SavedProject {
+export interface Project {
   id: string;
-  name: string;
-  updatedAt: string;
+  projectNumber: string;
+  projectName: string;
+  customerName: string;
+  customerProjectNumber: string | null;
   createdAt: string;
-}
-
-export interface SavedProjectWithData extends SavedProject {
-  data: object;
+  updatedAt: string;
+  _count?: { products: number };
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -23,7 +23,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export async function listProjects(): Promise<{
-  projects: SavedProject[];
+  projects: Project[];
   error: string | null;
 }> {
   try {
@@ -36,45 +36,52 @@ export async function listProjects(): Promise<{
   }
 }
 
-export async function saveProject(
-  name: string,
-  data: object,
-  projectId?: string
-): Promise<{ id: string | null; error: string | null }> {
+export async function createProject(data: {
+  projectNumber: string;
+  projectName: string;
+  customerName: string;
+  customerProjectNumber?: string;
+}): Promise<{ project: Project | null; error: string | null }> {
   try {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: await authHeaders(),
-      body: JSON.stringify({ name, data, projectId }),
+      body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(await res.text());
     const body = await res.json();
-    return { id: body.id ?? null, error: null };
+    return { project: body.project ?? null, error: null };
   } catch (e) {
-    return { id: null, error: String(e) };
+    return { project: null, error: String(e) };
   }
 }
 
-export async function loadProject(
-  projectId: string
-): Promise<{ data: object | null; error: string | null }> {
+export async function updateProject(
+  id: string,
+  data: Partial<{
+    projectNumber: string;
+    projectName: string;
+    customerName: string;
+    customerProjectNumber: string | null;
+  }>
+): Promise<{ project: Project | null; error: string | null }> {
   try {
-    const res = await fetch(`/api/projects/${projectId}`, {
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
       headers: await authHeaders(),
+      body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(await res.text());
     const body = await res.json();
-    return { data: body.data ?? null, error: null };
+    return { project: body.project ?? null, error: null };
   } catch (e) {
-    return { data: null, error: String(e) };
+    return { project: null, error: String(e) };
   }
 }
 
-export async function deleteProject(
-  projectId: string
-): Promise<{ error: string | null }> {
+export async function deleteProject(id: string): Promise<{ error: string | null }> {
   try {
-    const res = await fetch(`/api/projects/${projectId}`, {
+    const res = await fetch(`/api/projects/${id}`, {
       method: "DELETE",
       headers: await authHeaders(),
     });

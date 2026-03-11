@@ -89,9 +89,12 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
-              <Button asChild>
-                <a href="/builder">Open Builder <ArrowRight className="ml-2 h-4 w-4" /></a>
-              </Button>
+              <>
+                <Button asChild>
+                  <a href="/builder">Open Builder <ArrowRight className="ml-2 h-4 w-4" /></a>
+                </Button>
+                <Button variant="outline" onClick={logout}>Sign out</Button>
+              </>
             ) : (
               <Button onClick={() => setLoginOpen(true)}>
                 Sign in with Microsoft <ArrowRight className="ml-2 h-4 w-4" />

@@ -239,9 +239,9 @@ export async function generatePdf(state: MdbState): Promise<void> {
     }
 
     const isSubchapter = row.kind === "subchapter";
-    const labelX = isSubchapter ? margin + 8 : margin;
-    const codeX = isSubchapter ? margin + 20 : margin + 10;
-    const titleX = isSubchapter ? margin + 34 : margin + 22;
+    const labelX = isSubchapter ? margin + 4 : margin;
+    const codeX = isSubchapter ? margin + 16 : margin + 10;
+    const titleX = isSubchapter ? margin + 30 : margin + 22;
 
     doc.setFont("helvetica", row.kind === "chapter" ? "bold" : "normal");
     doc.setTextColor(row.kind === "chapter" ? 55 : 100, row.kind === "chapter" ? 55 : 100, row.kind === "chapter" ? 55 : 100);

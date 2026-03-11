@@ -16,21 +16,24 @@ export default function AuthCallback() {
       const msg = errorDescription
         ? decodeURIComponent(errorDescription)
         : errorParam;
+      console.log("[callback] error from Supabase:", msg);
       setError(msg);
       return;
     }
 
     if (!code) {
+      console.log("[callback] no code in URL, redirecting home");
       navigate("/");
       return;
     }
 
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+    console.log("[callback] exchanging code...");
+    supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
       if (error) {
+        console.log("[callback] exchange failed:", error.message);
         setError(error.message);
       } else {
-        // Reload to root so Landing page detects the new session and
-        // redirects to /builder — avoids Builder's auth guard race condition.
+        console.log("[callback] exchange succeeded, session user:", data.session?.user?.id ?? "none");
         window.location.href = "/";
       }
     });

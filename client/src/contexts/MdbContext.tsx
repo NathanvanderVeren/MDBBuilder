@@ -282,6 +282,7 @@ export function MdbProvider({ children }: { children: ReactNode }) {
         setLogoUrl,
         setPrimaryColor,
         resetProject,
+        loadState,
       }}
     >
       {children}

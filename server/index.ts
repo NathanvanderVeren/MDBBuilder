@@ -17,6 +17,7 @@ async function startServer() {
 
   // API routes
   app.use("/api/projects", requireAuth, projectsRouter);
+  app.use("/api/products", requireAuth, productsRouter);
 
   // Serve static files from dist/public in production
   const staticPath =

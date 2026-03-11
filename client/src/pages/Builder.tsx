@@ -1209,6 +1209,63 @@ export default function Builder() {
         </DialogContent>
       </Dialog>
 
+      {/* Projects Dialog */}
+      <Dialog open={projectsOpen} onOpenChange={setProjectsOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>My Projects</DialogTitle>
+            <DialogDescription>
+              Load a previously saved MDB project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 space-y-2">
+            {loadingProjects ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Loading...</p>
+            ) : savedProjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                No saved projects yet. Save your current work with the Save button.
+              </p>
+            ) : (
+              savedProjects.map((project) => (
+                <div
+                  key={project.id}
+                  className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-card/50 hover:border-border transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{project.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(project.updated_at).toLocaleDateString("nl-NL", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 bg-transparent"
+                      onClick={() => handleLoadProject(project.id)}
+                    >
+                      Open
+                    </Button>
+                    <button
+                      onClick={() => handleDeleteProject(project.id, project.name)}
+                      className="p-1.5 text-muted-foreground/40 hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Settings Dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="sm:max-w-md bg-card border-border">

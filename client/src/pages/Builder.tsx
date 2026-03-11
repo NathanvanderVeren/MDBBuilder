@@ -452,6 +452,25 @@ export default function Builder() {
             Settings
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenProjects}
+            className="gap-1.5 bg-transparent"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Projects
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSaveProject}
+            disabled={saving || state.sections.length === 0}
+            className="gap-1.5 bg-transparent"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {saving ? "Saving..." : currentProjectId ? "Save" : "Save"}
+          </Button>
+          <Button
             size="sm"
             onClick={handleExportPdf}
             disabled={generating || state.sections.length === 0}

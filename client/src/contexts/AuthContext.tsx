@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithMicrosoft = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
-      options: { redirectTo: `${window.location.origin}/builder` },
+      options: { redirectTo: window.location.origin },
     });
     return { error: error?.message ?? null };
   }, []);

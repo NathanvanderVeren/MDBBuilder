@@ -71,7 +71,7 @@ const COLOR_PRESETS = [
 ];
 
 export default function Builder() {
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const {
     state,
     setInfo,

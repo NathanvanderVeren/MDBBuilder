@@ -8,8 +8,17 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
     const projects = await prisma.project.findMany({
       where: { userId: req.userId! },
-      select: { id: true, name: true, createdAt: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        projectNumber: true,
+        projectName: true,
+        customerName: true,
+        customerProjectNumber: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { products: true } },
+      },
     });
     res.json({ projects });
   } catch {
@@ -18,62 +27,87 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
 });
 
 router.post("/", async (req: AuthenticatedRequest, res) => {
-  const { name, data, projectId } = req.body as {
-    name: string;
-    data: object;
-    projectId?: string;
+  const { projectNumber, projectName, customerName, customerProjectNumber } = req.body as {
+    projectNumber: string;
+    projectName: string;
+    customerName: string;
+    customerProjectNumber?: string;
   };
 
-  if (!name || !data) {
-    res.status(400).json({ error: "name and data are required" });
+  if (!projectNumber || !projectName || !customerName) {
+    res.status(400).json({ error: "projectNumber, projectName, and customerName are required" });
     return;
   }
 
   try {
-    if (projectId) {
-      const existing = await prisma.project.findUnique({ where: { id: projectId } });
-      if (!existing || existing.userId !== req.userId) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { name, data, updatedAt: new Date() },
-      });
-      res.json({ id: projectId });
-      return;
-    }
-
     const project = await prisma.project.create({
-      data: { userId: req.userId!, name, data },
-      select: { id: true },
+      data: {
+        userId: req.userId!,
+        projectNumber,
+        projectName,
+        customerName,
+        customerProjectNumber: customerProjectNumber || null,
+      },
+      select: {
+        id: true,
+        projectNumber: true,
+        projectName: true,
+        customerName: true,
+        customerProjectNumber: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { products: true } },
+      },
     });
-    res.json({ id: project.id });
+    res.json({ project });
   } catch {
-    res.status(500).json({ error: "Failed to save project" });
+    res.status(500).json({ error: "Failed to create project" });
   }
 });
 
-router.get("/:id", async (req: AuthenticatedRequest, res) => {
+router.patch("/:id", async (req: AuthenticatedRequest, res) => {
+  const { projectNumber, projectName, customerName, customerProjectNumber } = req.body as {
+    projectNumber?: string;
+    projectName?: string;
+    customerName?: string;
+    customerProjectNumber?: string | null;
+  };
+
   try {
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.id },
-    });
+    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
     if (!project || project.userId !== req.userId) {
       res.status(404).json({ error: "Project not found" });
       return;
     }
-    res.json({ data: project.data });
+
+    const updated = await prisma.project.update({
+      where: { id: req.params.id },
+      data: {
+        ...(projectNumber !== undefined && { projectNumber }),
+        ...(projectName !== undefined && { projectName }),
+        ...(customerName !== undefined && { customerName }),
+        ...(customerProjectNumber !== undefined && { customerProjectNumber }),
+      },
+      select: {
+        id: true,
+        projectNumber: true,
+        projectName: true,
+        customerName: true,
+        customerProjectNumber: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { products: true } },
+      },
+    });
+    res.json({ project: updated });
   } catch {
-    res.status(500).json({ error: "Failed to load project" });
+    res.status(500).json({ error: "Failed to update project" });
   }
 });
 
 router.delete("/:id", async (req: AuthenticatedRequest, res) => {
   try {
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.id },
-    });
+    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
     if (!project || project.userId !== req.userId) {
       res.status(404).json({ error: "Project not found" });
       return;

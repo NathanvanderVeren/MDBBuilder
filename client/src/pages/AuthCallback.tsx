@@ -29,7 +29,9 @@ export default function AuthCallback() {
       if (error) {
         setError(error.message);
       } else {
-        navigate("/builder");
+        // Full page reload so Supabase reads the new session from
+        // localStorage before any auth guard runs.
+        window.location.href = "/builder";
       }
     });
   }, [navigate]);

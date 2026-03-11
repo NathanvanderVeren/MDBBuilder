@@ -96,7 +96,7 @@ export default function Landing() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      navigate("/builder");
+      navigate("/projects");
     }
   }, [loading, isAuthenticated, navigate]);
 

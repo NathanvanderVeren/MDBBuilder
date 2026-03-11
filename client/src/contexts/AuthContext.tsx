@@ -36,8 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // onAuthStateChange fires INITIAL_SESSION once auth state is fully resolved,
     // including after OAuth redirects — more reliable than getSession() alone.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[auth]", event, session?.user?.id ?? "no user");
-      setUser(session?.user ? mapSupabaseUser(session.user) : null);
+setUser(session?.user ? mapSupabaseUser(session.user) : null);
       if (event === "INITIAL_SESSION") {
         setLoading(false);
       }

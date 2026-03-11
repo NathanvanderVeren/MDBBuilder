@@ -7,8 +7,10 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log("[callback] full URL:", window.location.href);
     const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+    const hashParams = new URLSearchParams(window.location.hash.replace("#", ""));
+    const code = params.get("code") ?? hashParams.get("code");
     const errorParam = params.get("error");
     const errorDescription = params.get("error_description");
 

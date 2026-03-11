@@ -89,18 +89,17 @@ export default function Builder() {
     setPrimaryColor,
     loadState,
   } = useMdb();
+  const { productId } = useParams<{ productId: string }>();
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<SectionCategory | "all">("all");
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [projectsOpen, setProjectsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [product, setProduct] = useState<ProductWithMdb | null>(null);
+  const [loadingProduct, setLoadingProduct] = useState(true);
   const [draggingChapter, setDraggingChapter] = useState<SectionCategory | null>(null);
   const [isChapterPointerDragging, setIsChapterPointerDragging] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);

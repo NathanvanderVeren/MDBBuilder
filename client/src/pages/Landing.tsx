@@ -65,8 +65,15 @@ const features = [
 ];
 
 export default function Landing() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  const [, navigate] = useLocation();
   const [loginOpen, setLoginOpen] = useState(false);
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate("/builder");
+    }
+  }, [loading, isAuthenticated, navigate]);
 
   return (
     <div className="min-h-screen bg-background">

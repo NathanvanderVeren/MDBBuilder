@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { MdbProvider } from "./contexts/MdbContext";
 import Landing from "./pages/Landing";
 import Builder from "./pages/Builder";
+import AuthCallback from "./pages/AuthCallback";
 
 function Router() {
   return (

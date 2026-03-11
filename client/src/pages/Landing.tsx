@@ -385,8 +385,8 @@ export default function Landing() {
             </p>
             {isAuthenticated ? (
               <Button size="lg" asChild className="text-base px-10">
-                <a href="/builder">
-                  Open Builder <ArrowRight className="ml-2 h-5 w-5" />
+                <a href="/projects">
+                  My Projects <ArrowRight className="ml-2 h-5 w-5" />
                 </a>
               </Button>
             ) : (

@@ -34,6 +34,7 @@ interface MdbContextType {
   setLogoUrl: (url: string | null) => void;
   setPrimaryColor: (color: string) => void;
   resetProject: () => void;
+  loadState: (savedState: MdbState) => void;
 }
 
 const defaultInfo: ProjectInfo = {

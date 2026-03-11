@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -E \"\\\\.\\(tsx|jsx|ts|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx|jsx|ts|js\\)$\")",
+      "Bash(cd * && git add -A && git commit -m *)",
+      "Bash(pnpm add:*)",
+      "Bash(npm install:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"c:/Coding/Manus/mdbuilder\" && git add -A && git commit -m \"Auto-save: $(date '+%Y-%m-%d %H:%M:%S')\""
+          }
+        ]
+      }
     ]
   }
 }

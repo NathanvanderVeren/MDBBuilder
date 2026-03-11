@@ -7,38 +7,38 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log("[callback] full URL:", window.location.href);
     const params = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.replace("#", ""));
-    const code = params.get("code") ?? hashParams.get("code");
-    const errorParam = params.get("error") ?? hashParams.get("error");
-    const errorDescription = params.get("error_description") ?? hashParams.get("error_description");
+    const hash = new URLSearchParams(window.location.hash.replace("#", ""));
 
+    const errorParam = params.get("error") ?? hash.get("error");
     if (errorParam) {
-      const msg = errorDescription
-        ? decodeURIComponent(errorDescription)
-        : errorParam;
-      console.log("[callback] error from Supabase:", msg);
-      setError(msg);
+      const desc = params.get("error_description") ?? hash.get("error_description");
+      setError(desc ? decodeURIComponent(desc) : errorParam);
       return;
     }
 
-    if (!code) {
-      console.log("[callback] no code in URL, redirecting home");
-      navigate("/");
+    // PKCE flow: code in query string
+    const code = params.get("code");
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) setError(error.message);
+        else window.location.href = "/";
+      });
       return;
     }
 
-    console.log("[callback] exchanging code...");
-    supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
-      if (error) {
-        console.log("[callback] exchange failed:", error.message);
-        setError(error.message);
-      } else {
-        console.log("[callback] exchange succeeded, session user:", data.session?.user?.id ?? "none");
-        window.location.href = "/";
-      }
-    });
+    // Implicit flow: tokens in URL hash (used by Supabase Azure provider)
+    const access_token = hash.get("access_token");
+    const refresh_token = hash.get("refresh_token");
+    if (access_token && refresh_token) {
+      supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+        if (error) setError(error.message);
+        else window.location.href = "/";
+      });
+      return;
+    }
+
+    navigate("/");
   }, [navigate]);
 
   if (error) {

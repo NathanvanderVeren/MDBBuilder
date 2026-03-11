@@ -259,6 +259,10 @@ export function MdbProvider({ children }: { children: ReactNode }) {
     setState(defaultState);
   }, []);
 
+  const loadState = useCallback((savedState: MdbState) => {
+    setState(savedState);
+  }, []);
+
   return (
     <MdbContext.Provider
       value={{

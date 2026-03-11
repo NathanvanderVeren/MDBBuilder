@@ -15,7 +15,8 @@ import {
   CheckCircle,
   ArrowRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import LoginDialog from "@/components/LoginDialog";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/mdb-preview-mockup-bu2sriEjQDjc3bPUT3wTMk.webp";

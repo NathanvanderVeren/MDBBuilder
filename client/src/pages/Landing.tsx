@@ -66,7 +66,7 @@ const features = [
 ];
 
 export default function Landing() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, logout } = useAuth();
   const [, navigate] = useLocation();
   const [loginOpen, setLoginOpen] = useState(false);
 

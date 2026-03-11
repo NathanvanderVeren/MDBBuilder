@@ -115,7 +115,7 @@ export default function Landing() {
             {isAuthenticated ? (
               <>
                 <Button asChild>
-                  <a href="/builder">Open Builder <ArrowRight className="ml-2 h-4 w-4" /></a>
+                  <a href="/projects">My Projects <ArrowRight className="ml-2 h-4 w-4" /></a>
                 </Button>
                 <Button variant="outline" onClick={logout}>Sign out</Button>
               </>

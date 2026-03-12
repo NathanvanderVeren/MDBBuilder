@@ -416,15 +416,22 @@ export default function Builder() {
             variant="ghost"
             size="sm"
             className="gap-1.5 text-muted-foreground"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/projects")}
           >
             <ChevronLeft className="h-4 w-4" />
             <img src={LOGO_PNG} alt="BizzBit" className="h-5" />
           </Button>
           <div className="h-5 w-px bg-border" />
-          <span className="text-sm font-[var(--font-mono)] text-muted-foreground">
-            MDB Builder
-          </span>
+          <div>
+            <span className="text-sm font-[var(--font-mono)] text-muted-foreground">
+              MDB Builder
+            </span>
+            {product && (
+              <span className="ml-2 text-xs text-muted-foreground/60 font-[var(--font-mono)]">
+                — {product.tagNumber}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button

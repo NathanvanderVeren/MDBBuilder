@@ -49,7 +49,6 @@ import {
   Palette,
   LayoutTemplate,
   Save,
-  FolderOpen,
 } from "lucide-react";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useLocation, useParams } from "wouter";

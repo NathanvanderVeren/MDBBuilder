@@ -133,7 +133,7 @@ export default function Projects() {
   }
 
   // ── Open products modal
-  const handleOpenProject = useCallback(async (project: Project) => {
+  async function handleOpenProject(project: Project) {
     setSelectedProject(project);
     setProducts([]);
     setProductsOpen(true);
@@ -142,7 +142,7 @@ export default function Projects() {
     if (error) toast.error("Failed to load products", { description: error });
     else setProducts(p);
     setLoadingProducts(false);
-  }, []);
+  }
 
   // ── Project create/edit ──────────────────────────────────────────────────
 

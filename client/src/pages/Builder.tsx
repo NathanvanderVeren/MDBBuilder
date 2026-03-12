@@ -113,6 +113,15 @@ export default function Builder() {
     return null;
   }
 
+  if (loadingProduct) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background text-muted-foreground gap-3">
+        <span className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        Loading MDB…
+      </div>
+    );
+  }
+
   const selectedIds = new Set(state.sections.map((s) => s.id));
   const chapterCount = state.sections.filter((section) => section.id !== "mdb-index").length;
   const indexSection = state.sections.find((section) => section.id === "mdb-index");

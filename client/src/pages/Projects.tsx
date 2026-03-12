@@ -110,17 +110,19 @@ export default function Projects() {
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm());
   const [savingProduct, setSavingProduct] = useState(false);
 
+  // ── Load projects on mount (must be before auth guard early returns)
+  useEffect(() => {
+    if (!authLoading && user) {
+      loadProjectsList();
+    }
+  }, [authLoading, user]);
+
   // Auth guard
   if (authLoading) return null;
   if (!user) {
     navigate("/");
     return null;
   }
-
-  // ── Load projects on mount
-  useEffect(() => {
-    loadProjectsList();
-  }, []);
 
   async function loadProjectsList() {
     setLoadingProjects(true);

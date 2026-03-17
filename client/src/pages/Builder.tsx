@@ -1696,12 +1696,12 @@ export default function Builder() {
                   <div className="border border-dashed border-border rounded-xl p-12 text-center">
                     <LayoutTemplate className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
                 {/* Locked Premium Features */}
-                <div className="p-4 border-b border-border/50">
-                  <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                <div className="mx-auto mb-6 max-w-2xl border-b border-border/50 p-4">
+                  <h3 className="mb-2 flex items-center justify-center gap-1.5 text-sm font-semibold">
                     <Lock className="h-3.5 w-3.5 text-primary" />
                     Full Platform Features
                   </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-2 text-left">
                     {[
                       {
                         title: "MDB Content Management",
@@ -2501,9 +2501,9 @@ export default function Builder() {
               Manage your account branding and this project's document style studio in one place.
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
-            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.9fr]">
-            <div className="space-y-6 pr-1">
+          <div className="min-h-0 flex-1 overflow-hidden py-1 pr-1">
+            <div className="grid h-full min-h-0 gap-6 lg:grid-cols-2">
+            <div className="min-h-0 space-y-6 overflow-y-auto pr-1 pb-4">
               <section className="space-y-4 rounded-2xl border border-border/70 bg-muted/10 p-4">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">Account Branding</h3>
@@ -2611,7 +2611,9 @@ export default function Builder() {
                   </label>
                 </div>
               </section>
+            </div>
 
+            <aside className="min-h-0 space-y-4 overflow-y-auto pr-1 pb-4 lg:max-h-[65vh]">
               <section className="space-y-5 rounded-2xl border border-border/70 bg-muted/10 p-4">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">Project Style Studio</h3>
@@ -2622,7 +2624,7 @@ export default function Builder() {
 
                 <div className="space-y-3">
                   <Label className="text-sm block">Cover Style</Label>
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {COVER_STYLE_OPTIONS.map((option) => (
                       <StyleOptionCard
                         key={option.value}
@@ -2644,7 +2646,7 @@ export default function Builder() {
 
                 <div className="space-y-3">
                   <Label className="text-sm block">Divider Style</Label>
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {DIVIDER_STYLE_OPTIONS.map((option) => (
                       <StyleOptionCard
                         key={option.value}
@@ -2687,60 +2689,10 @@ export default function Builder() {
                   </div>
                 </div>
               </section>
-            </div>
-
-            <aside className="space-y-4">
-              <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-muted/20 p-4">
-                <div className="mb-4">
-                  <div className="text-sm font-semibold text-foreground">Live Preview</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Current selections for project {product?.projectNumber || "-"}.
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      Cover Page
-                    </div>
-                    <div className="overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
-                      <CoverStylePreview
-                        style={projectStyleDraft.coverStyle}
-                        color={settingsBranding.primaryColor}
-                        fontFamily={projectStyleDraft.fontFamily}
-                        companyName={settingsBranding.companyName?.trim() || product?.projectCustomerName || "Your Company"}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                      Divider Page
-                    </div>
-                    <div className="overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
-                      <DividerStylePreview
-                        style={projectStyleDraft.dividerStyle}
-                        color={settingsBranding.primaryColor}
-                        fontFamily={projectStyleDraft.fontFamily}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4 text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">Preview metadata</div>
-                    <div className="mt-3 space-y-2">
-                      <div>Project: {product?.projectName || state.info.projectName || "Project Name"}</div>
-                      <div>Client: {product?.projectCustomerName || state.info.clientName || "Client Name"}</div>
-                      <div>Product: {product?.productName || "Equipment"}</div>
-                      <div>Font: {FONT_FAMILY_OPTIONS.find((option) => option.value === projectStyleDraft.fontFamily)?.label}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </aside>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="border-t border-border/60 bg-card pt-3">
             <Button variant="outline" onClick={() => setBrandingSettingsOpen(false)}>
               Cancel
             </Button>

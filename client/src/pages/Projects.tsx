@@ -386,6 +386,7 @@ export default function Projects() {
     setProjects((prev) => [project, ...prev]);
     setCreateProjectOpen(false);
     toast.success(`Project "${project.projectName}" created`);
+    void handleOpenProject(project);
   }
 
   async function handleUpdateProject() {

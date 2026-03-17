@@ -9,6 +9,7 @@ export interface ProductForm {
   unitsEnabled: boolean;
   unitCount: number;
   unitNumberingMode: UnitNumberingMode;
+  unitNumberPrefix: string;
   customUnitNumbers: string[];
 }
 
@@ -20,6 +21,7 @@ export function emptyProductForm(): ProductForm {
     unitsEnabled: false,
     unitCount: 1,
     unitNumberingMode: "auto",
+    unitNumberPrefix: "",
     customUnitNumbers: [],
   };
 }
@@ -141,6 +143,7 @@ export function ProductFormFields({
                   unitsEnabled: enabled,
                   unitCount: enabled ? unitCount : 1,
                   unitNumberingMode: enabled ? form.unitNumberingMode : "auto",
+                  unitNumberPrefix: enabled ? form.unitNumberPrefix : "",
                   customUnitNumbers: enabled
                     ? alignCustomUnitNumbers(form.customUnitNumbers, unitCount)
                     : [],
@@ -173,6 +176,7 @@ export function ProductFormFields({
                       onChange({
                         ...form,
                         unitNumberingMode: mode,
+                          unitNumberPrefix: mode === "custom" ? "" : form.unitNumberPrefix,
                         customUnitNumbers:
                           mode === "custom"
                             ? alignCustomUnitNumbers(form.customUnitNumbers, unitCount)
@@ -181,17 +185,32 @@ export function ProductFormFields({
                     }}
                     className="w-full h-10 rounded-md border border-input bg-input/50 px-3 text-sm"
                   >
-                    <option value="auto">Auto (1 to N)</option>
+                      <option value="auto">Auto (1, 2, 3)</option>
+                      <option value="auto-2">Auto (01, 02, 03)</option>
+                      <option value="auto-3">Auto (001, 002, 003)</option>
+                      <option value="auto-lower-alpha">Auto (a, b, c)</option>
+                      <option value="auto-upper-alpha">Auto (A, B, C)</option>
                     <option value="custom">Custom (per unit)</option>
                   </select>
                 </div>
               </div>
 
-              {form.unitNumberingMode === "auto" && (
-                <p className="text-xs text-muted-foreground">
-                  Units will be numbered from 1 to {unitCount}.
-                </p>
-              )}
+                {form.unitNumberingMode !== "custom" && (
+                  <div className="space-y-1.5">
+                    <div>
+                      <Label className="text-sm mb-1.5 block">Unit Prefix (optional)</Label>
+                      <Input
+                        value={form.unitNumberPrefix}
+                        onChange={(e) => onChange({ ...form, unitNumberPrefix: e.target.value })}
+                        placeholder="e.g. U-"
+                        className="bg-input/50 font-[var(--font-mono)]"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Auto numbering uses your selected format and applies the prefix to each unit.
+                    </p>
+                  </div>
+                )}
 
               {form.unitNumberingMode === "custom" && (
                 <p className="text-xs text-muted-foreground">

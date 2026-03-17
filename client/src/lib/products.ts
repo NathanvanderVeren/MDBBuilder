@@ -1,7 +1,13 @@
 import { supabase } from "./supabase";
 import type { ProjectDocumentStyle } from "./document-styles";
 
-export type UnitNumberingMode = "auto" | "custom";
+export type UnitNumberingMode =
+  | "auto"
+  | "auto-2"
+  | "auto-3"
+  | "auto-lower-alpha"
+  | "auto-upper-alpha"
+  | "custom";
 
 export interface Product {
   id: string;
@@ -12,6 +18,7 @@ export interface Product {
   unitsEnabled: boolean;
   unitCount: number;
   unitNumberingMode: UnitNumberingMode;
+  unitNumberPrefix: string | null;
   customUnitNumbers: string[] | null;
   createdAt: string;
   updatedAt: string;
@@ -88,6 +95,7 @@ export async function createProduct(data: {
   unitsEnabled?: boolean;
   unitCount?: number;
   unitNumberingMode?: UnitNumberingMode;
+  unitNumberPrefix?: string | null;
   customUnitNumbers?: string[] | null;
 }): Promise<{ product: Product | null; error: string | null }> {
   try {
@@ -113,6 +121,7 @@ export async function updateProduct(
     unitsEnabled: boolean;
     unitCount: number;
     unitNumberingMode: UnitNumberingMode;
+    unitNumberPrefix: string | null;
     customUnitNumbers: string[] | null;
   }>
 ): Promise<{ product: Product | null; error: string | null }> {
@@ -145,6 +154,52 @@ export async function saveMdbData(
   } catch (e) {
     return { error: String(e) };
   }
+}
+
+function alphaSequence(index: number, uppercase: boolean): string {
+  let value = "";
+  let current = index;
+
+  while (current > 0) {
+    current -= 1;
+    const charCode = (uppercase ? 65 : 97) + (current % 26);
+    value = String.fromCharCode(charCode) + value;
+    current = Math.floor(current / 26);
+  }
+
+  return value;
+}
+
+export function generateAutoUnitNumbers(
+  count: number,
+  mode: UnitNumberingMode,
+  prefix?: string | null
+): string[] {
+  const safeCount = Math.max(1, Math.min(500, Number(count) || 1));
+  const cleanPrefix = (prefix ?? "").trim();
+
+  if (mode === "custom") {
+    return [];
+  }
+
+  const numbers = Array.from({ length: safeCount }, (_, index) => {
+    const unitIndex = index + 1;
+    let sequence = String(unitIndex);
+
+    if (mode === "auto-2") {
+      sequence = String(unitIndex).padStart(2, "0");
+    } else if (mode === "auto-3") {
+      sequence = String(unitIndex).padStart(3, "0");
+    } else if (mode === "auto-lower-alpha") {
+      sequence = alphaSequence(unitIndex, false);
+    } else if (mode === "auto-upper-alpha") {
+      sequence = alphaSequence(unitIndex, true);
+    }
+
+    return `${cleanPrefix}${sequence}`;
+  });
+
+  return numbers;
 }
 
 export async function deleteProduct(id: string): Promise<{ error: string | null }> {

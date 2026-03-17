@@ -32,6 +32,7 @@ model Product {
   unitsEnabled          Boolean  @default(false) @map("units_enabled")
   unitCount             Int      @default(1) @map("unit_count")
   unitNumberingMode     String   @default("auto") @map("unit_numbering_mode")
+  unitNumberPrefix      String?  @map("unit_number_prefix")
   customUnitNumbers     Json?    @map("custom_unit_numbers")
   mdbData               Json?    @map("mdb_data")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

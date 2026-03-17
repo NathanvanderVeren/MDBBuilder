@@ -134,7 +134,7 @@ function buildPdfDocument(state: MdbState): { doc: jsPDF; exportItems: ExportIte
   const primaryFont = getPdfFontFamily(documentStyle.fontFamily);
   const primaryRgb = hexToRgb(state.primaryColor);
   const brandingCompanyName = nonEmpty(state.brandingData?.companyName);
-  const drawPageBranding = (options?: { dark?: boolean; includeLogo?: boolean }) => {
+  const drawPageBranding = (options?: { dark?: boolean; includeLogo?: boolean; includeCompanyName?: boolean }) => {
       const hasBranding = !!state.logoUrl || !!brandingCompanyName;
       if (!hasBranding) return;
 
@@ -158,7 +158,7 @@ function buildPdfDocument(state: MdbState): { doc: jsPDF; exportItems: ExportIte
         rightEdge -= 24 + 4;
       }
 
-      if (brandingCompanyName) {
+      if (options?.includeCompanyName !== false && brandingCompanyName) {
         doc.setFont(primaryFont, "bold");
         doc.setFontSize(8);
         doc.setTextColor(textColor[0], textColor[1], textColor[2]);
@@ -878,11 +878,20 @@ function buildPdfDocument(state: MdbState): { doc: jsPDF; exportItems: ExportIte
     align: "center",
   });
 
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(28);
-  doc.setTextColor(...primaryRgb);
-  doc.text("BizzBit", pageWidth / 2, pageHeight / 2 + 5, {
-    align: "center",
-  });
+  const logoBaseY = pageHeight / 2 + 5;
+  const bizzText = "Bizz";
+  const bitText = "Bit";
+  const bizzWidth = doc.getTextWidth(bizzText);
+  const bitWidth = doc.getTextWidth(bitText);
+  const logoStartX = pageWidth / 2 - (bizzWidth + bitWidth) / 2;
+
+  // Match navbar lockup: white "Bizz" + blue "Bit" with subtle lowered baseline.
+  doc.setTextColor(255, 255, 255);
+  doc.text(bizzText, logoStartX, logoBaseY);
+  doc.setTextColor(59, 130, 246);
+  doc.text(bitText, logoStartX + bizzWidth, logoBaseY + 2.2);
 
   doc.setFont(primaryFont, "normal");
   doc.setFontSize(10);
@@ -900,7 +909,13 @@ function buildPdfDocument(state: MdbState): { doc: jsPDF; exportItems: ExportIte
     align: "center",
   });
 
-  drawPageBranding({ dark: true, includeLogo: false });
+  doc.setFontSize(8);
+  doc.setTextColor(120, 130, 150);
+  doc.text(`\u00A9 ${new Date().getFullYear()} BizzBit`, pageWidth / 2, pageHeight / 2 + 38, {
+    align: "center",
+  });
+
+  drawPageBranding({ dark: true, includeLogo: false, includeCompanyName: false });
 
   // Add hierarchical PDF bookmarks.
   doc.outline.add(null, "Cover", { pageNumber: coverPageNumber });

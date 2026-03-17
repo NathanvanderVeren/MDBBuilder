@@ -4,7 +4,7 @@
  * Clicking a product opens the MDB Builder.
  */
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,17 +65,9 @@ import {
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import BizzBitLogo from "@/components/BizzBitLogo";
+import BrandColorPalette, { DEFAULT_BRAND_COLOR_PRESETS } from "@/components/BrandColorPalette";
 
-const BRAND_COLOR_PRESETS = [
-  "#3B82F6",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#06B6D4",
-  "#EC4899",
-  "#F97316",
-];
+const BRAND_COLOR_PRESETS = DEFAULT_BRAND_COLOR_PRESETS;
 
 // ─── Form state helpers ──────────────────────────────────────────────────────
 
@@ -107,6 +99,7 @@ export default function Projects() {
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [projectForm, setProjectForm] = useState<ProjectForm>(emptyProjectForm());
+  const [projectFormBaseline, setProjectFormBaseline] = useState<ProjectForm | null>(null);
   const [savingProject, setSavingProject] = useState(false);
 
   // ── Products modal (open when clicking a project)
@@ -124,7 +117,12 @@ export default function Projects() {
   const [editProductOpen, setEditProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm());
+  const [productFormBaseline, setProductFormBaseline] = useState<ProductForm | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [unsavedEditDialogOpen, setUnsavedEditDialogOpen] = useState(false);
+  const [pendingEditModal, setPendingEditModal] = useState<
+    "create-project" | "edit-project" | "create-product" | "edit-product" | null
+  >(null);
   const [customUnitsValidationOpen, setCustomUnitsValidationOpen] = useState(false);
   const [customUnitsValidationMissing, setCustomUnitsValidationMissing] = useState(0);
   const [brandingOpen, setBrandingOpen] = useState(false);
@@ -134,6 +132,10 @@ export default function Projects() {
     logoUrl: null,
     primaryColor: "#3B82F6",
   });
+  const [brandingBaseline, setBrandingBaseline] = useState<BrandingSettings | null>(null);
+  const [welcomeBaseline, setWelcomeBaseline] = useState<BrandingSettings | null>(null);
+  const [pendingUnsavedModal, setPendingUnsavedModal] = useState<"branding" | "welcome" | null>(null);
+  const [unsavedSettingsDialogOpen, setUnsavedSettingsDialogOpen] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
   const [brandingLogoDragActive, setBrandingLogoDragActive] = useState(false);
   const [welcomeLogoDragActive, setWelcomeLogoDragActive] = useState(false);
@@ -161,10 +163,71 @@ export default function Projects() {
       marketingConsent: branding.marketingConsent,
     });
 
+    const loadedBranding: BrandingSettings = {
+      companyName: branding.companyName ?? user?.company ?? null,
+      logoUrl: branding.logoUrl,
+      primaryColor: branding.primaryColor,
+      isFirstTime: branding.isFirstTime,
+      marketingConsent: branding.marketingConsent,
+    };
+    setBrandingBaseline(loadedBranding);
+    setWelcomeBaseline(loadedBranding);
+
     if (branding.isFirstTime) {
+      setWelcomeBaseline(loadedBranding);
       setWelcomeOpen(true);
     }
   }
+
+  const hasUnsavedBrandingChanges = useCallback((baseline: BrandingSettings | null) => {
+    if (!baseline) return false;
+
+    return (
+      (brandingForm.companyName ?? "") !== (baseline.companyName ?? "") ||
+      (brandingForm.logoUrl ?? null) !== (baseline.logoUrl ?? null) ||
+      brandingForm.primaryColor !== baseline.primaryColor ||
+      (brandingForm.marketingConsent ?? false) !== (baseline.marketingConsent ?? false)
+    );
+  }, [brandingForm]);
+
+  const requestCloseBrandingModal = useCallback(() => {
+    if (savingBranding) return;
+
+    if (hasUnsavedBrandingChanges(brandingBaseline)) {
+      setPendingUnsavedModal("branding");
+      setUnsavedSettingsDialogOpen(true);
+      return;
+    }
+
+    setBrandingOpen(false);
+  }, [savingBranding, hasUnsavedBrandingChanges, brandingBaseline]);
+
+  const requestCloseWelcomeModal = useCallback(() => {
+    if (savingBranding) return;
+
+    if (hasUnsavedBrandingChanges(welcomeBaseline)) {
+      setPendingUnsavedModal("welcome");
+      setUnsavedSettingsDialogOpen(true);
+      return;
+    }
+
+    setWelcomeOpen(false);
+  }, [savingBranding, hasUnsavedBrandingChanges, welcomeBaseline]);
+
+  const discardUnsavedSettingsChanges = useCallback(() => {
+    if (pendingUnsavedModal === "branding") {
+      if (brandingBaseline) setBrandingForm(brandingBaseline);
+      setBrandingOpen(false);
+    }
+
+    if (pendingUnsavedModal === "welcome") {
+      if (welcomeBaseline) setBrandingForm(welcomeBaseline);
+      setWelcomeOpen(false);
+    }
+
+    setUnsavedSettingsDialogOpen(false);
+    setPendingUnsavedModal(null);
+  }, [pendingUnsavedModal, brandingBaseline, welcomeBaseline]);
 
   async function handleSaveWelcomeBranding() {
     setSavingBranding(true);
@@ -183,6 +246,8 @@ export default function Projects() {
     }
 
     setBrandingForm(branding);
+    setBrandingBaseline(branding);
+    setWelcomeBaseline(branding);
     setWelcomeOpen(false);
     toast.success("Welcome setup saved");
   }
@@ -198,6 +263,8 @@ export default function Projects() {
     });
     if (branding) {
       setBrandingForm(branding);
+      setBrandingBaseline(branding);
+      setWelcomeBaseline(branding);
     }
     setWelcomeOpen(false);
   }
@@ -269,19 +336,28 @@ export default function Projects() {
   // ── Project create/edit ──────────────────────────────────────────────────
 
   function openCreateProject() {
-    setProjectForm(emptyProjectForm());
+    const initialProjectForm = emptyProjectForm();
+    setProjectForm(initialProjectForm);
+    setProjectFormBaseline(initialProjectForm);
     setCreateProjectOpen(true);
   }
 
   function openEditProject(project: Project) {
     setEditingProject(project);
-    setProjectForm({
+    const initialProjectForm: ProjectForm = {
       projectNumber: project.projectNumber,
       projectName: project.projectName,
       customerName: project.customerName,
       customerProjectNumber: project.customerProjectNumber ?? "",
-    });
+    };
+    setProjectForm(initialProjectForm);
+    setProjectFormBaseline(initialProjectForm);
     setEditProjectOpen(true);
+  }
+
+  function hasProjectFormUnsavedChanges() {
+    if (!projectFormBaseline) return false;
+    return JSON.stringify(projectForm) !== JSON.stringify(projectFormBaseline);
   }
 
   async function handleCreateProject() {
@@ -343,7 +419,9 @@ export default function Projects() {
   // ── Product create/edit ──────────────────────────────────────────────────
 
   function openCreateProduct() {
-    setProductForm(emptyProductForm());
+    const initialProductForm = emptyProductForm();
+    setProductForm(initialProductForm);
+    setProductFormBaseline(initialProductForm);
     setCreateProductOpen(true);
   }
 
@@ -355,16 +433,67 @@ export default function Projects() {
         ? alignCustomUnitNumbers(product.customUnitNumbers ?? [], resolvedUnitCount)
         : [];
 
-    setProductForm({
+    const initialProductForm: ProductForm = {
       productName: product.productName,
       tagNumber: product.tagNumber ?? "",
       mdbDocumentNumber: product.mdbDocumentNumber ?? "",
       unitsEnabled: product.unitsEnabled,
       unitCount: resolvedUnitCount,
       unitNumberingMode: product.unitsEnabled ? product.unitNumberingMode : "auto",
+      unitNumberPrefix: product.unitsEnabled ? (product.unitNumberPrefix ?? "") : "",
       customUnitNumbers: resolvedCustomNumbers,
-    });
+    };
+    setProductForm(initialProductForm);
+    setProductFormBaseline(initialProductForm);
     setEditProductOpen(true);
+  }
+
+  function hasProductFormUnsavedChanges() {
+    if (!productFormBaseline) return false;
+    return JSON.stringify(productForm) !== JSON.stringify(productFormBaseline);
+  }
+
+  function requestCloseEditModal(modal: "create-project" | "edit-project" | "create-product" | "edit-product") {
+    if ((modal === "create-project" || modal === "edit-project") && savingProject) return;
+    if ((modal === "create-product" || modal === "edit-product") && savingProduct) return;
+
+    const hasUnsavedChanges =
+      modal === "create-project" || modal === "edit-project"
+        ? hasProjectFormUnsavedChanges()
+        : hasProductFormUnsavedChanges();
+
+    if (hasUnsavedChanges) {
+      setPendingEditModal(modal);
+      setUnsavedEditDialogOpen(true);
+      return;
+    }
+
+    if (modal === "create-project") setCreateProjectOpen(false);
+    if (modal === "edit-project") setEditProjectOpen(false);
+    if (modal === "create-product") setCreateProductOpen(false);
+    if (modal === "edit-product") setEditProductOpen(false);
+  }
+
+  function discardEditModalChanges() {
+    if (pendingEditModal === "create-project") {
+      if (projectFormBaseline) setProjectForm(projectFormBaseline);
+      setCreateProjectOpen(false);
+    }
+    if (pendingEditModal === "edit-project") {
+      if (projectFormBaseline) setProjectForm(projectFormBaseline);
+      setEditProjectOpen(false);
+    }
+    if (pendingEditModal === "create-product") {
+      if (productFormBaseline) setProductForm(productFormBaseline);
+      setCreateProductOpen(false);
+    }
+    if (pendingEditModal === "edit-product") {
+      if (productFormBaseline) setProductForm(productFormBaseline);
+      setEditProductOpen(false);
+    }
+
+    setUnsavedEditDialogOpen(false);
+    setPendingEditModal(null);
   }
 
   async function handleCreateProduct() {
@@ -401,6 +530,10 @@ export default function Projects() {
       unitsEnabled: productForm.unitsEnabled,
       unitCount: productForm.unitsEnabled ? unitCount : 1,
       unitNumberingMode: productForm.unitsEnabled ? productForm.unitNumberingMode : "auto",
+      unitNumberPrefix:
+        productForm.unitsEnabled && productForm.unitNumberingMode !== "custom"
+          ? (productForm.unitNumberPrefix.trim() || null)
+          : null,
       customUnitNumbers:
         productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
           ? customUnitNumbers
@@ -421,7 +554,9 @@ export default function Projects() {
       )
     );
     setCreateProductOpen(false);
+    setProductsOpen(false);
     toast.success(`Product "${product.productName}" created`);
+    navigate(`/builder/${product.id}`);
   }
 
   async function handleUpdateProduct() {
@@ -457,6 +592,10 @@ export default function Projects() {
       unitsEnabled: productForm.unitsEnabled,
       unitCount: productForm.unitsEnabled ? unitCount : 1,
       unitNumberingMode: productForm.unitsEnabled ? productForm.unitNumberingMode : "auto",
+      unitNumberPrefix:
+        productForm.unitsEnabled && productForm.unitNumberingMode !== "custom"
+          ? (productForm.unitNumberPrefix.trim() || null)
+          : null,
       customUnitNumbers:
         productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
           ? customUnitNumbers
@@ -508,6 +647,7 @@ export default function Projects() {
     }
 
     setBrandingForm(branding);
+    setBrandingBaseline(branding);
     setBrandingOpen(false);
     toast.success("Branding settings saved");
   }
@@ -537,7 +677,15 @@ export default function Projects() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBrandingOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                setBrandingBaseline(brandingForm);
+                setBrandingOpen(true);
+              }}
+            >
               <Settings className="h-4 w-4" />
               Settings
             </Button>
@@ -794,7 +942,16 @@ export default function Projects() {
       </div>
 
       {/* ── Create Project Dialog ─────────────────────────────────────────── */}
-      <Dialog open={createProjectOpen} onOpenChange={setCreateProjectOpen}>
+      <Dialog
+        open={createProjectOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setCreateProjectOpen(true);
+            return;
+          }
+          requestCloseEditModal("create-project");
+        }}
+      >
         <DialogContent className="sm:max-w-md bg-card border-border">
           <DialogHeader>
             <DialogTitle>New Project</DialogTitle>
@@ -804,7 +961,7 @@ export default function Projects() {
           </DialogHeader>
           <ProjectFormFields form={projectForm} onChange={setProjectForm} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateProjectOpen(false)}>
+            <Button variant="outline" onClick={() => requestCloseEditModal("create-project")}>
               Cancel
             </Button>
             <Button onClick={handleCreateProject} disabled={savingProject}>
@@ -815,14 +972,23 @@ export default function Projects() {
       </Dialog>
 
       {/* ── Edit Project Dialog ───────────────────────────────────────────── */}
-      <Dialog open={editProjectOpen} onOpenChange={setEditProjectOpen}>
+      <Dialog
+        open={editProjectOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setEditProjectOpen(true);
+            return;
+          }
+          requestCloseEditModal("edit-project");
+        }}
+      >
         <DialogContent className="sm:max-w-md bg-card border-border">
           <DialogHeader>
             <DialogTitle>Edit Project</DialogTitle>
           </DialogHeader>
           <ProjectFormFields form={projectForm} onChange={setProjectForm} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditProjectOpen(false)}>
+            <Button variant="outline" onClick={() => requestCloseEditModal("edit-project")}>
               Cancel
             </Button>
             <Button onClick={handleUpdateProject} disabled={savingProject}>
@@ -935,7 +1101,16 @@ export default function Projects() {
       </Dialog>
 
       {/* ── Create Product Dialog ─────────────────────────────────────────── */}
-      <Dialog open={createProductOpen} onOpenChange={setCreateProductOpen}>
+      <Dialog
+        open={createProductOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setCreateProductOpen(true);
+            return;
+          }
+          requestCloseEditModal("create-product");
+        }}
+      >
         <DialogContent
           className={`${
             productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
@@ -951,7 +1126,7 @@ export default function Projects() {
           </DialogHeader>
           <ProductFormFields form={productForm} onChange={setProductForm} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateProductOpen(false)}>
+            <Button variant="outline" onClick={() => requestCloseEditModal("create-product")}>
               Cancel
             </Button>
             <Button onClick={handleCreateProduct} disabled={savingProduct}>
@@ -962,7 +1137,16 @@ export default function Projects() {
       </Dialog>
 
       {/* ── Edit Product Dialog ───────────────────────────────────────────── */}
-      <Dialog open={editProductOpen} onOpenChange={setEditProductOpen}>
+      <Dialog
+        open={editProductOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setEditProductOpen(true);
+            return;
+          }
+          requestCloseEditModal("edit-product");
+        }}
+      >
         <DialogContent
           className={`${
             productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
@@ -975,7 +1159,7 @@ export default function Projects() {
           </DialogHeader>
           <ProductFormFields form={productForm} onChange={setProductForm} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditProductOpen(false)}>
+            <Button variant="outline" onClick={() => requestCloseEditModal("edit-product")}>
               Cancel
             </Button>
             <Button onClick={handleUpdateProduct} disabled={savingProduct}>
@@ -985,7 +1169,74 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={brandingOpen} onOpenChange={setBrandingOpen}>
+      <Dialog
+        open={unsavedEditDialogOpen}
+        onOpenChange={(open) => {
+          setUnsavedEditDialogOpen(open);
+          if (!open) setPendingEditModal(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. Do you want to save before closing?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnsavedEditDialogOpen(false);
+                setPendingEditModal(null);
+              }}
+            >
+              Continue editing
+            </Button>
+            <Button
+              onClick={async () => {
+                setUnsavedEditDialogOpen(false);
+                const targetModal = pendingEditModal;
+                setPendingEditModal(null);
+
+                if (targetModal === "create-project") {
+                  await handleCreateProject();
+                  return;
+                }
+                if (targetModal === "edit-project") {
+                  await handleUpdateProject();
+                  return;
+                }
+                if (targetModal === "create-product") {
+                  await handleCreateProduct();
+                  return;
+                }
+                if (targetModal === "edit-product") {
+                  await handleUpdateProduct();
+                }
+              }}
+              disabled={savingProject || savingProduct}
+            >
+              {savingProject || savingProduct ? "Saving..." : "Save and close"}
+            </Button>
+            <Button variant="destructive" onClick={discardEditModalChanges}>
+              Discard changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={brandingOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setBrandingBaseline(brandingForm);
+            setBrandingOpen(true);
+            return;
+          }
+          requestCloseBrandingModal();
+        }}
+      >
         <DialogContent className="sm:max-w-lg bg-card border-border">
           <DialogHeader>
             <DialogTitle>Branding Settings</DialogTitle>
@@ -1059,19 +1310,11 @@ export default function Projects() {
             </div>
             <div>
               <Label className="text-sm mb-1.5 block">Primary Brand Color</Label>
-              <div className="flex flex-wrap gap-2">
-                {BRAND_COLOR_PRESETS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setBrandingForm((prev) => ({ ...prev, primaryColor: color }))}
-                    className={`h-8 w-8 rounded-md border-2 ${
-                      brandingForm.primaryColor === color ? "border-foreground scale-110" : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
+              <BrandColorPalette
+                value={brandingForm.primaryColor}
+                onChange={(color) => setBrandingForm((prev) => ({ ...prev, primaryColor: color }))}
+                presets={BRAND_COLOR_PRESETS}
+              />
             </div>
             <div className="pt-2 border-t border-border/50">
               <label className="flex items-start gap-3 cursor-pointer">
@@ -1091,7 +1334,7 @@ export default function Projects() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBrandingOpen(false)}>
+            <Button variant="outline" onClick={requestCloseBrandingModal}>
               Cancel
             </Button>
             <Button onClick={handleSaveBranding} disabled={savingBranding}>
@@ -1101,7 +1344,17 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={welcomeOpen} onOpenChange={setWelcomeOpen}>
+      <Dialog
+        open={welcomeOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setWelcomeBaseline(brandingForm);
+            setWelcomeOpen(true);
+            return;
+          }
+          requestCloseWelcomeModal();
+        }}
+      >
         <DialogContent className="sm:max-w-lg bg-card border-border">
           <DialogHeader>
             <div className="flex items-center gap-2 mb-2">
@@ -1178,19 +1431,11 @@ export default function Projects() {
             </div>
             <div>
               <Label className="text-sm mb-1.5 block">Primary Brand Color</Label>
-              <div className="flex flex-wrap gap-2">
-                {BRAND_COLOR_PRESETS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setBrandingForm((prev) => ({ ...prev, primaryColor: color }))}
-                    className={`h-8 w-8 rounded-md border-2 ${
-                      brandingForm.primaryColor === color ? "border-foreground scale-110" : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
+              <BrandColorPalette
+                value={brandingForm.primaryColor}
+                onChange={(color) => setBrandingForm((prev) => ({ ...prev, primaryColor: color }))}
+                presets={BRAND_COLOR_PRESETS}
+              />
             </div>
             <p className="text-xs text-muted-foreground">
               You can always change these branding settings later from the Settings button in the navbar.
@@ -1234,6 +1479,56 @@ export default function Projects() {
             </Button>
             <Button onClick={handleSaveWelcomeBranding} disabled={savingBranding}>
               {savingBranding ? "Saving..." : "Save and continue"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={unsavedSettingsDialogOpen}
+        onOpenChange={(open) => {
+          setUnsavedSettingsDialogOpen(open);
+          if (!open) setPendingUnsavedModal(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Unsaved settings changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. Do you want to discard these changes and close?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnsavedSettingsDialogOpen(false);
+                setPendingUnsavedModal(null);
+              }}
+            >
+              Continue editing
+            </Button>
+            <Button
+              onClick={async () => {
+                setUnsavedSettingsDialogOpen(false);
+                const targetModal = pendingUnsavedModal;
+                setPendingUnsavedModal(null);
+
+                if (targetModal === "branding") {
+                  await handleSaveBranding();
+                  return;
+                }
+
+                if (targetModal === "welcome") {
+                  await handleSaveWelcomeBranding();
+                }
+              }}
+              disabled={savingBranding}
+            >
+              {savingBranding ? "Saving..." : "Save and close"}
+            </Button>
+            <Button variant="destructive" onClick={discardUnsavedSettingsChanges}>
+              Discard changes
             </Button>
           </DialogFooter>
         </DialogContent>

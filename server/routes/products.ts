@@ -5,12 +5,34 @@ import type { AuthenticatedRequest } from "../middleware/auth.js";
 
 const router = Router();
 
-type UnitNumberingMode = "auto" | "custom";
+type UnitNumberingMode =
+  | "auto"
+  | "auto-2"
+  | "auto-3"
+  | "auto-lower-alpha"
+  | "auto-upper-alpha"
+  | "custom";
+
+function normalizeUnitNumberingMode(value: unknown): UnitNumberingMode {
+  if (
+    value === "auto" ||
+    value === "auto-2" ||
+    value === "auto-3" ||
+    value === "auto-lower-alpha" ||
+    value === "auto-upper-alpha" ||
+    value === "custom"
+  ) {
+    return value;
+  }
+
+  return "auto";
+}
 
 function normalizeUnitSettings(input: {
   unitsEnabled?: unknown;
   unitCount?: unknown;
   unitNumberingMode?: unknown;
+  unitNumberPrefix?: unknown;
   customUnitNumbers?: unknown;
 }) {
   const unitsEnabled = input.unitsEnabled === true;
@@ -18,14 +40,17 @@ function normalizeUnitSettings(input: {
   const unitCount = Number.isFinite(parsedCount)
     ? Math.max(1, Math.min(500, Math.floor(parsedCount)))
     : 1;
-  const unitNumberingMode: UnitNumberingMode =
-    input.unitNumberingMode === "custom" ? "custom" : "auto";
+  const unitNumberingMode = normalizeUnitNumberingMode(input.unitNumberingMode);
+  const rawPrefix =
+    typeof input.unitNumberPrefix === "string" ? input.unitNumberPrefix.trim() : "";
+  const unitNumberPrefix = rawPrefix ? rawPrefix.slice(0, 32) : null;
 
   if (!unitsEnabled) {
     return {
       unitsEnabled: false,
       unitCount: 1,
       unitNumberingMode: "auto" as UnitNumberingMode,
+      unitNumberPrefix: null,
       customUnitNumbers: Prisma.DbNull,
     };
   }
@@ -43,6 +68,7 @@ function normalizeUnitSettings(input: {
       unitsEnabled: true,
       unitCount,
       unitNumberingMode,
+      unitNumberPrefix: null,
       customUnitNumbers: values,
     };
   }
@@ -51,6 +77,7 @@ function normalizeUnitSettings(input: {
     unitsEnabled: true,
     unitCount,
     unitNumberingMode,
+    unitNumberPrefix,
     customUnitNumbers: Prisma.DbNull,
   };
 }
@@ -76,6 +103,7 @@ router.get("/project/:projectId", async (req: AuthenticatedRequest, res) => {
         unitsEnabled: true,
         unitCount: true,
         unitNumberingMode: true,
+        unitNumberPrefix: true,
         customUnitNumbers: true,
         createdAt: true,
         updatedAt: true,
@@ -124,6 +152,7 @@ router.get("/:id", async (req: AuthenticatedRequest, res) => {
         unitsEnabled: product.unitsEnabled,
         unitCount: product.unitCount,
         unitNumberingMode: product.unitNumberingMode,
+        unitNumberPrefix: product.unitNumberPrefix,
         customUnitNumbers: product.customUnitNumbers,
         mdbData: product.mdbData,
         createdAt: product.createdAt,
@@ -153,6 +182,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     unitsEnabled,
     unitCount,
     unitNumberingMode,
+    unitNumberPrefix,
     customUnitNumbers,
   } = req.body as {
     projectId: string;
@@ -162,6 +192,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     unitsEnabled?: boolean;
     unitCount?: number;
     unitNumberingMode?: UnitNumberingMode;
+    unitNumberPrefix?: string | null;
     customUnitNumbers?: string[];
   };
 
@@ -175,6 +206,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
       unitsEnabled,
       unitCount,
       unitNumberingMode,
+      unitNumberPrefix,
       customUnitNumbers,
     });
     if ("error" in normalizedUnits) {
@@ -197,6 +229,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
         unitsEnabled: normalizedUnits.unitsEnabled,
         unitCount: normalizedUnits.unitCount,
         unitNumberingMode: normalizedUnits.unitNumberingMode,
+        unitNumberPrefix: normalizedUnits.unitNumberPrefix,
         customUnitNumbers: normalizedUnits.customUnitNumbers,
       },
       select: {
@@ -208,6 +241,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
         unitsEnabled: true,
         unitCount: true,
         unitNumberingMode: true,
+        unitNumberPrefix: true,
         customUnitNumbers: true,
         createdAt: true,
         updatedAt: true,
@@ -229,6 +263,7 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
     unitsEnabled,
     unitCount,
     unitNumberingMode,
+    unitNumberPrefix,
     customUnitNumbers,
   } = req.body as {
     productName?: string;
@@ -237,6 +272,7 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
     unitsEnabled?: boolean;
     unitCount?: number;
     unitNumberingMode?: UnitNumberingMode;
+    unitNumberPrefix?: string | null;
     customUnitNumbers?: string[];
   };
 
@@ -254,12 +290,14 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
       unitsEnabled !== undefined ||
       unitCount !== undefined ||
       unitNumberingMode !== undefined ||
+      unitNumberPrefix !== undefined ||
       customUnitNumbers !== undefined;
     const normalizedUnits = hasUnitsUpdate
       ? normalizeUnitSettings({
           unitsEnabled: unitsEnabled ?? product.unitsEnabled,
           unitCount: unitCount ?? product.unitCount,
           unitNumberingMode: unitNumberingMode ?? product.unitNumberingMode,
+          unitNumberPrefix: unitNumberPrefix ?? product.unitNumberPrefix,
           customUnitNumbers: customUnitNumbers ?? product.customUnitNumbers,
         })
       : null;
@@ -279,6 +317,7 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
           unitsEnabled: normalizedUnits.unitsEnabled,
           unitCount: normalizedUnits.unitCount,
           unitNumberingMode: normalizedUnits.unitNumberingMode,
+          unitNumberPrefix: normalizedUnits.unitNumberPrefix,
           customUnitNumbers: normalizedUnits.customUnitNumbers,
         }),
       },
@@ -291,6 +330,7 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
         unitsEnabled: true,
         unitCount: true,
         unitNumberingMode: true,
+        unitNumberPrefix: true,
         customUnitNumbers: true,
         createdAt: true,
         updatedAt: true,

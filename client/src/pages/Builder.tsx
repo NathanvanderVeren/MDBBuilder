@@ -59,7 +59,13 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { generatePdf, generatePdfBlob, generatePdfZip, generatePdfZipEntries } from "@/lib/pdf-generator";
 import JSZip from "jszip";
-import { getProduct, saveMdbData, updateProduct, type ProductWithMdb } from "@/lib/products";
+import {
+  generateAutoUnitNumbers,
+  getProduct,
+  saveMdbData,
+  updateProduct,
+  type ProductWithMdb,
+} from "@/lib/products";
 import { updateProject } from "@/lib/projects";
 import {
   ProductFormFields,
@@ -89,6 +95,7 @@ import {
 } from "@/lib/library";
 import ThemeToggle from "@/components/ThemeToggle";
 import BizzBitLogo from "@/components/BizzBitLogo";
+import BrandColorPalette from "@/components/BrandColorPalette";
 import { motion } from "framer-motion";
 
 type SectionDraft = {
@@ -319,11 +326,20 @@ export default function Builder() {
   const [editingSection, setEditingSection] = useState<LibrarySection | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [categoryColor, setCategoryColor] = useState("#6B7280");
+  const [categoryBaseline, setCategoryBaseline] = useState<{ name: string; color: string } | null>(null);
   const [sectionCategoryId, setSectionCategoryId] = useState("");
   const [sectionTitle, setSectionTitle] = useState("");
   const [sectionCode, setSectionCode] = useState("");
   const [sectionDescription, setSectionDescription] = useState("");
+  const [sectionBaseline, setSectionBaseline] = useState<{
+    categoryId: string;
+    title: string;
+    code: string;
+    description: string;
+  } | null>(null);
   const [savingLibrary, setSavingLibrary] = useState(false);
+  const [libraryUnsavedDialogOpen, setLibraryUnsavedDialogOpen] = useState(false);
+  const [pendingLibraryModal, setPendingLibraryModal] = useState<"category" | "section" | null>(null);
   const [draggingChapter, setDraggingChapter] = useState<SectionCategory | null>(null);
   const [isChapterPointerDragging, setIsChapterPointerDragging] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
@@ -336,10 +352,13 @@ export default function Builder() {
   const [exportFormat, setExportFormat] = useState<"pdf" | "zip">("pdf");
   const [productEditOpen, setProductEditOpen] = useState(false);
   const [productEditForm, setProductEditForm] = useState<ProductForm>(emptyProductForm());
+  const [productEditBaseline, setProductEditBaseline] = useState<ProductForm | null>(null);
   const [savingProductEdit, setSavingProductEdit] = useState(false);
+  const [productEditUnsavedDialogOpen, setProductEditUnsavedDialogOpen] = useState(false);
   const [productEditValidationOpen, setProductEditValidationOpen] = useState(false);
   const [productEditValidationMissing, setProductEditValidationMissing] = useState(0);
   const [brandingSettingsOpen, setBrandingSettingsOpen] = useState(false);
+  const [settingsUnsavedDialogOpen, setSettingsUnsavedDialogOpen] = useState(false);
   const [savingBrandingSettings, setSavingBrandingSettings] = useState(false);
   const [projectStyle, setProjectStyle] = useState<ProjectDocumentStyle>(DEFAULT_PROJECT_DOCUMENT_STYLE);
   const [sectionEditDialogOpen, setSectionEditDialogOpen] = useState(false);
@@ -366,6 +385,7 @@ export default function Builder() {
     DEFAULT_PROJECT_DOCUMENT_STYLE
   );
   const baselineStateRef = useRef<string | null>(null);
+  const restoredDraftRef = useRef(false);
   const pendingExitActionRef = useRef<null | (() => void | Promise<void>)>(null);
 
   const selectedIds = new Set(state.sections.map((s) => s.id));
@@ -660,7 +680,7 @@ export default function Builder() {
         .slice(0, count);
     }
 
-    return Array.from({ length: count }, (_, index) => String(index + 1));
+      return generateAutoUnitNumbers(count, product.unitNumberingMode, product.unitNumberPrefix);
   }, [product]);
 
   const buildExportState = useCallback(
@@ -696,9 +716,14 @@ export default function Builder() {
   );
 
   const currentStateSnapshot = useMemo(() => JSON.stringify(state), [state]);
+  const draftStorageKey = useMemo(
+    () => (productId ? `mdb-builder-draft:${productId}` : null),
+    [productId]
+  );
   const hasUnsavedChanges = useMemo(() => {
     if (authLoading || loadingProduct) return false;
     if (baselineStateRef.current === null) return false;
+    if (restoredDraftRef.current) return true;
     return baselineStateRef.current !== currentStateSnapshot;
   }, [authLoading, loadingProduct, currentStateSnapshot]);
 
@@ -809,18 +834,39 @@ export default function Builder() {
   }, []);
 
   const openCreateCategoryDialog = useCallback(() => {
+    const initialCategory = { name: "", color: "#6B7280" };
     setEditingCategory(null);
-    setCategoryName("");
-    setCategoryColor("#6B7280");
+    setCategoryName(initialCategory.name);
+    setCategoryColor(initialCategory.color);
+    setCategoryBaseline(initialCategory);
     setCategoryDialogOpen(true);
   }, []);
 
   const openEditCategoryDialog = useCallback((category: LibraryCategory) => {
+    const initialCategory = { name: category.name, color: category.color };
     setEditingCategory(category);
-    setCategoryName(category.name);
-    setCategoryColor(category.color);
+    setCategoryName(initialCategory.name);
+    setCategoryColor(initialCategory.color);
+    setCategoryBaseline(initialCategory);
     setCategoryDialogOpen(true);
   }, []);
+
+  const isCategoryDirty = useMemo(() => {
+    if (!categoryBaseline) return false;
+    return categoryName !== categoryBaseline.name || categoryColor !== categoryBaseline.color;
+  }, [categoryName, categoryColor, categoryBaseline]);
+
+  const requestCloseCategoryDialog = useCallback(() => {
+    if (savingLibrary) return;
+
+    if (isCategoryDirty) {
+      setPendingLibraryModal("category");
+      setLibraryUnsavedDialogOpen(true);
+      return;
+    }
+
+    setCategoryDialogOpen(false);
+  }, [savingLibrary, isCategoryDirty]);
 
   const saveCategory = useCallback(async () => {
     if (!categoryName.trim()) {
@@ -853,22 +899,81 @@ export default function Builder() {
   }, [categoryName, categoryColor, editingCategory, refreshLibrary]);
 
   const openCreateSectionDialog = useCallback(() => {
+    const initialSection = {
+      categoryId: libraryCategories[0]?.id || "",
+      title: "",
+      code: "",
+      description: "",
+    };
     setEditingSection(null);
-    setSectionTitle("");
-    setSectionCode("");
-    setSectionDescription("");
-    setSectionCategoryId(libraryCategories[0]?.id || "");
+    setSectionTitle(initialSection.title);
+    setSectionCode(initialSection.code);
+    setSectionDescription(initialSection.description);
+    setSectionCategoryId(initialSection.categoryId);
+    setSectionBaseline(initialSection);
     setSectionDialogOpen(true);
   }, [libraryCategories]);
 
   const openEditSectionDialog = useCallback((section: LibrarySection) => {
+    const initialSection = {
+      categoryId: section.categoryId,
+      title: section.title,
+      code: section.code,
+      description: section.description,
+    };
     setEditingSection(section);
-    setSectionTitle(section.title);
-    setSectionCode(section.code);
-    setSectionDescription(section.description);
-    setSectionCategoryId(section.categoryId);
+    setSectionTitle(initialSection.title);
+    setSectionCode(initialSection.code);
+    setSectionDescription(initialSection.description);
+    setSectionCategoryId(initialSection.categoryId);
+    setSectionBaseline(initialSection);
     setSectionDialogOpen(true);
   }, []);
+
+  const isSectionDirty = useMemo(() => {
+    if (!sectionBaseline) return false;
+    return (
+      sectionCategoryId !== sectionBaseline.categoryId ||
+      sectionTitle !== sectionBaseline.title ||
+      sectionCode !== sectionBaseline.code ||
+      sectionDescription !== sectionBaseline.description
+    );
+  }, [sectionCategoryId, sectionTitle, sectionCode, sectionDescription, sectionBaseline]);
+
+  const requestCloseSectionDialog = useCallback(() => {
+    if (savingLibrary) return;
+
+    if (isSectionDirty) {
+      setPendingLibraryModal("section");
+      setLibraryUnsavedDialogOpen(true);
+      return;
+    }
+
+    setSectionDialogOpen(false);
+  }, [savingLibrary, isSectionDirty]);
+
+  const discardLibraryDialogChanges = useCallback(() => {
+    if (pendingLibraryModal === "category") {
+      if (categoryBaseline) {
+        setCategoryName(categoryBaseline.name);
+        setCategoryColor(categoryBaseline.color);
+      }
+      setCategoryDialogOpen(false);
+    }
+
+    if (pendingLibraryModal === "section") {
+      if (sectionBaseline) {
+        setSectionCategoryId(sectionBaseline.categoryId);
+        setSectionTitle(sectionBaseline.title);
+        setSectionCode(sectionBaseline.code);
+        setSectionDescription(sectionBaseline.description);
+      }
+      setSectionDialogOpen(false);
+    }
+
+    setLibraryUnsavedDialogOpen(false);
+    setPendingLibraryModal(null);
+  }, [pendingLibraryModal, categoryBaseline, sectionBaseline]);
 
   const saveSection = useCallback(async () => {
     if (!sectionCategoryId || !sectionTitle.trim() || !sectionCode.trim() || !sectionDescription.trim()) {
@@ -985,20 +1090,47 @@ export default function Builder() {
 
   const openProductEditDialog = useCallback(() => {
     if (!product) return;
-    setProductEditForm({
+    const initialProductForm: ProductForm = {
       productName: product.productName,
       tagNumber: product.tagNumber ?? "",
       mdbDocumentNumber: product.mdbDocumentNumber ?? "",
       unitsEnabled: product.unitsEnabled,
       unitCount: product.unitsEnabled ? Math.max(1, product.unitCount) : 1,
       unitNumberingMode: product.unitsEnabled ? product.unitNumberingMode : "auto",
+      unitNumberPrefix: product.unitsEnabled ? (product.unitNumberPrefix ?? "") : "",
       customUnitNumbers:
         product.unitsEnabled && product.unitNumberingMode === "custom"
           ? alignCustomUnitNumbers(product.customUnitNumbers ?? [], Math.max(1, product.unitCount))
           : [],
-    });
+    };
+    setProductEditForm(initialProductForm);
+    setProductEditBaseline(initialProductForm);
     setProductEditOpen(true);
   }, [product]);
+
+  const isProductEditDirty = useMemo(() => {
+    if (!productEditBaseline) return false;
+    return JSON.stringify(productEditForm) !== JSON.stringify(productEditBaseline);
+  }, [productEditForm, productEditBaseline]);
+
+  const requestCloseProductEditDialog = useCallback(() => {
+    if (savingProductEdit) return;
+
+    if (isProductEditDirty) {
+      setProductEditUnsavedDialogOpen(true);
+      return;
+    }
+
+    setProductEditOpen(false);
+  }, [savingProductEdit, isProductEditDirty]);
+
+  const discardProductEditChanges = useCallback(() => {
+    if (productEditBaseline) {
+      setProductEditForm(productEditBaseline);
+    }
+    setProductEditUnsavedDialogOpen(false);
+    setProductEditOpen(false);
+  }, [productEditBaseline]);
 
   const handleSaveProductEdit = useCallback(async () => {
     if (!product) return;
@@ -1033,6 +1165,10 @@ export default function Builder() {
       unitsEnabled: productEditForm.unitsEnabled,
       unitCount: productEditForm.unitsEnabled ? unitCount : 1,
       unitNumberingMode: productEditForm.unitsEnabled ? productEditForm.unitNumberingMode : "auto",
+      unitNumberPrefix:
+        productEditForm.unitsEnabled && productEditForm.unitNumberingMode !== "custom"
+          ? (productEditForm.unitNumberPrefix.trim() || null)
+          : null,
       customUnitNumbers:
         productEditForm.unitsEnabled && productEditForm.unitNumberingMode === "custom"
           ? customUnitNumbers
@@ -1055,6 +1191,7 @@ export default function Builder() {
             unitsEnabled: updated.unitsEnabled,
             unitCount: updated.unitCount,
             unitNumberingMode: updated.unitNumberingMode,
+            unitNumberPrefix: updated.unitNumberPrefix,
             customUnitNumbers: updated.customUnitNumbers,
           }
         : prev
@@ -1109,6 +1246,39 @@ export default function Builder() {
     setBrandingSettingsOpen(false);
     toast.success("Settings saved");
   }, [product, projectStyleDraft, settingsBranding]);
+
+  const isBuilderSettingsDirty = useMemo(() => {
+    const draftStyle = normalizeProjectDocumentStyle(projectStyleDraft);
+    const savedStyle = normalizeProjectDocumentStyle(projectStyle);
+
+    return (
+      (settingsBranding.companyName ?? "") !== (branding.companyName ?? "") ||
+      (settingsBranding.logoUrl ?? null) !== (branding.logoUrl ?? null) ||
+      settingsBranding.primaryColor !== branding.primaryColor ||
+      (settingsBranding.marketingConsent ?? false) !== (branding.marketingConsent ?? false) ||
+      draftStyle.coverStyle !== savedStyle.coverStyle ||
+      draftStyle.dividerStyle !== savedStyle.dividerStyle ||
+      draftStyle.fontFamily !== savedStyle.fontFamily
+    );
+  }, [branding, settingsBranding, projectStyleDraft, projectStyle]);
+
+  const requestCloseBrandingSettings = useCallback(() => {
+    if (savingBrandingSettings) return;
+
+    if (isBuilderSettingsDirty) {
+      setSettingsUnsavedDialogOpen(true);
+      return;
+    }
+
+    setBrandingSettingsOpen(false);
+  }, [isBuilderSettingsDirty, savingBrandingSettings]);
+
+  const discardBuilderSettingsChanges = useCallback(() => {
+    setSettingsBranding(branding);
+    setProjectStyleDraft(projectStyle);
+    setSettingsUnsavedDialogOpen(false);
+    setBrandingSettingsOpen(false);
+  }, [branding, projectStyle]);
 
   const openSettingsDialog = useCallback(() => {
     setSettingsBranding(branding);
@@ -1287,6 +1457,7 @@ export default function Builder() {
 
       setLoadingProduct(true);
       baselineStateRef.current = null;
+      restoredDraftRef.current = false;
       resetProject();
 
       try {
@@ -1309,24 +1480,54 @@ export default function Builder() {
         setProjectStyle(normalizedProjectStyle);
         setProjectStyleDraft(normalizedProjectStyle);
 
-        const savedState = p.mdbData;
-        const hasValidSavedShape =
-          !!savedState &&
-          typeof savedState === "object" &&
-          !Array.isArray(savedState) &&
-          Array.isArray((savedState as { sections?: unknown }).sections) &&
-          Array.isArray((savedState as { chapterOrder?: unknown }).chapterOrder) &&
-          typeof (savedState as { info?: unknown }).info === "object";
+        const hasValidMdbStateShape = (value: unknown) =>
+          !!value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          Array.isArray((value as { sections?: unknown }).sections) &&
+          Array.isArray((value as { chapterOrder?: unknown }).chapterOrder) &&
+          typeof (value as { info?: unknown }).info === "object";
 
-        if (hasValidSavedShape) {
-          loadState(savedState as Parameters<typeof loadState>[0]);
-        } else {
+        const serverSnapshot = hasValidMdbStateShape(p.mdbData)
+          ? JSON.stringify(p.mdbData)
+          : null;
+
+        // Restore unsaved local draft first; fallback to saved server state.
+        let restoredLocalDraft = false;
+        if (draftStorageKey) {
+          try {
+            const rawDraft = localStorage.getItem(draftStorageKey);
+            if (rawDraft) {
+              const parsedDraft = JSON.parse(rawDraft);
+              if (hasValidMdbStateShape(parsedDraft)) {
+                loadState(parsedDraft as Parameters<typeof loadState>[0]);
+                restoredLocalDraft = true;
+              } else {
+                localStorage.removeItem(draftStorageKey);
+              }
+            }
+          } catch {
+            localStorage.removeItem(draftStorageKey);
+          }
+        }
+
+        restoredDraftRef.current = restoredLocalDraft;
+
+        if (!restoredLocalDraft && hasValidMdbStateShape(p.mdbData)) {
+          loadState(p.mdbData as Parameters<typeof loadState>[0]);
+        } else if (!restoredLocalDraft) {
           // Pre-fill info from product metadata for a new MDB
           setInfo({
             projectName: p.projectName,
             clientName: p.projectCustomerName,
             documentNumber: p.mdbDocumentNumber || "",
           });
+        }
+
+        // If we restored a local draft, keep the baseline anchored to persisted server state.
+        // This ensures unsaved warning still appears until the user explicitly saves.
+        if (restoredLocalDraft) {
+          baselineStateRef.current = serverSnapshot ?? "__LOCAL_DRAFT_NO_SERVER_SNAPSHOT__";
         }
       } catch (error) {
         if (cancelled) return;
@@ -1342,14 +1543,26 @@ export default function Builder() {
     return () => {
       cancelled = true;
     };
-  }, [productId, authLoading, user, loadState, navigate, resetProject, setInfo]);
+  }, [productId, authLoading, user, loadState, navigate, resetProject, setInfo, draftStorageKey]);
 
   useEffect(() => {
     if (authLoading || loadingProduct) return;
     if (baselineStateRef.current === null) {
       baselineStateRef.current = currentStateSnapshot;
+      restoredDraftRef.current = false;
     }
   }, [authLoading, loadingProduct, currentStateSnapshot]);
+
+  useEffect(() => {
+    if (!draftStorageKey || authLoading || loadingProduct) return;
+
+    if (hasUnsavedChanges) {
+      localStorage.setItem(draftStorageKey, currentStateSnapshot);
+      return;
+    }
+
+    localStorage.removeItem(draftStorageKey);
+  }, [draftStorageKey, authLoading, loadingProduct, hasUnsavedChanges, currentStateSnapshot]);
 
   const handleSaveMdb = useCallback(async () => {
     if (!productId) return false;
@@ -1361,10 +1574,14 @@ export default function Builder() {
       return false;
     } else {
       baselineStateRef.current = JSON.stringify(state);
+      restoredDraftRef.current = false;
+      if (draftStorageKey) {
+        localStorage.removeItem(draftStorageKey);
+      }
       toast.success("MDB saved");
       return true;
     }
-  }, [productId, state]);
+  }, [productId, state, draftStorageKey]);
 
   const handleSaveAndExit = useCallback(async () => {
     setSavingBeforeExit(true);
@@ -1375,25 +1592,21 @@ export default function Builder() {
   }, [handleSaveMdb, executePendingExit]);
 
   const handleDiscardAndExit = useCallback(() => {
+    // Explicit discard should not be restored when returning to this product.
+    if (draftStorageKey) {
+      localStorage.removeItem(draftStorageKey);
+    }
+    baselineStateRef.current = currentStateSnapshot;
+    restoredDraftRef.current = false;
     void executePendingExit();
-  }, [executePendingExit]);
+  }, [executePendingExit, draftStorageKey, currentStateSnapshot]);
 
   const handleCancelExit = useCallback(() => {
     pendingExitActionRef.current = null;
     setUnsavedDialogOpen(false);
   }, []);
 
-  useEffect(() => {
-    if (!hasUnsavedChanges) return;
-
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  // Avoid beforeunload listeners so browser back/forward cache can keep this page warm.
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -2223,7 +2436,7 @@ export default function Builder() {
 
       {/* Template Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-        <DialogContent className="sm:max-w-lg bg-card border-border">
+        <DialogContent className="w-[95vw] max-w-2xl bg-card border-border">
           <DialogHeader>
             <DialogTitle>Choose a Template</DialogTitle>
             <DialogDescription>
@@ -2257,7 +2470,7 @@ export default function Builder() {
       </Dialog>
 
       <Dialog open={templateWarningOpen} onOpenChange={setTemplateWarningOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+        <DialogContent className="sm:max-w-lg bg-card border-border">
           <DialogHeader>
             <DialogTitle>Replace current chapters?</DialogTitle>
             <DialogDescription>
@@ -2275,8 +2488,17 @@ export default function Builder() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+      <Dialog
+        open={categoryDialogOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setCategoryDialogOpen(true);
+            return;
+          }
+          requestCloseCategoryDialog();
+        }}
+      >
+        <DialogContent className="w-[95vw] max-w-2xl bg-card border-border">
           <DialogHeader>
             <DialogTitle>{editingCategory ? "Edit Category" : "Add Category"}</DialogTitle>
             <DialogDescription>
@@ -2297,12 +2519,36 @@ export default function Builder() {
             </div>
             <div>
               <Label className="text-sm mb-1.5 block">Category Color</Label>
-              <input
-                type="color"
-                value={categoryColor}
-                onChange={(e) => setCategoryColor(e.target.value)}
-                className="h-10 w-full p-1 bg-transparent border border-border/50 rounded"
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                {COLOR_PRESETS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setCategoryColor(color)}
+                    className={`h-8 w-8 rounded-md border-2 transition-transform ${
+                      categoryColor === color ? "border-foreground scale-110" : "border-transparent"
+                    }`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`Select color ${color}`}
+                    title={color}
+                  />
+                ))}
+
+                <span className="ml-1 text-xs text-muted-foreground">Custom</span>
+                <label
+                  className="relative h-8 w-8 cursor-pointer overflow-hidden rounded-md border-2 border-border"
+                  title="Custom color"
+                >
+                  <span className="block h-full w-full" style={{ backgroundColor: categoryColor }} />
+                  <Input
+                    type="color"
+                    value={categoryColor}
+                    onChange={(e) => setCategoryColor(e.target.value)}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    aria-label="Custom category color"
+                  />
+                </label>
+              </div>
             </div>
             <Button onClick={saveCategory} className="w-full" disabled={savingLibrary}>
               {savingLibrary ? "Saving..." : "Save Category"}
@@ -2432,7 +2678,16 @@ export default function Builder() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={sectionDialogOpen} onOpenChange={setSectionDialogOpen}>
+      <Dialog
+        open={sectionDialogOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setSectionDialogOpen(true);
+            return;
+          }
+          requestCloseSectionDialog();
+        }}
+      >
         <DialogContent className="sm:max-w-lg bg-card border-border">
           <DialogHeader>
             <DialogTitle>{editingSection ? "Edit Section" : "Add Section"}</DialogTitle>
@@ -2493,7 +2748,66 @@ export default function Builder() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={brandingSettingsOpen} onOpenChange={setBrandingSettingsOpen}>
+      <Dialog
+        open={libraryUnsavedDialogOpen}
+        onOpenChange={(open) => {
+          setLibraryUnsavedDialogOpen(open);
+          if (!open) setPendingLibraryModal(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes. Do you want to save before closing?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLibraryUnsavedDialogOpen(false);
+                setPendingLibraryModal(null);
+              }}
+            >
+              Continue editing
+            </Button>
+            <Button
+              onClick={async () => {
+                setLibraryUnsavedDialogOpen(false);
+                const targetModal = pendingLibraryModal;
+                setPendingLibraryModal(null);
+
+                if (targetModal === "category") {
+                  await saveCategory();
+                  return;
+                }
+
+                if (targetModal === "section") {
+                  await saveSection();
+                }
+              }}
+              disabled={savingLibrary}
+            >
+              {savingLibrary ? "Saving..." : "Save and close"}
+            </Button>
+            <Button variant="destructive" onClick={discardLibraryDialogChanges}>
+              Discard changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={brandingSettingsOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setBrandingSettingsOpen(true);
+            return;
+          }
+          requestCloseBrandingSettings();
+        }}
+      >
         <DialogContent className="flex max-h-[88vh] flex-col overflow-hidden sm:max-w-6xl bg-card border-border">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
@@ -2578,19 +2892,11 @@ export default function Builder() {
                 </div>
                 <div>
                   <Label className="text-sm mb-1.5 block">Primary Brand Color</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {COLOR_PRESETS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setSettingsBranding((prev) => ({ ...prev, primaryColor: color }))}
-                        className={`h-8 w-8 rounded-md border-2 transition-transform ${
-                          settingsBranding.primaryColor === color ? "border-foreground scale-110" : "border-transparent"
-                        }`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
+                  <BrandColorPalette
+                    value={settingsBranding.primaryColor}
+                    onChange={(color) => setSettingsBranding((prev) => ({ ...prev, primaryColor: color }))}
+                    presets={COLOR_PRESETS}
+                  />
                 </div>
                 <div className="pt-2 border-t border-border/50">
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -2693,7 +2999,7 @@ export default function Builder() {
             </div>
           </div>
           <DialogFooter className="border-t border-border/60 bg-card pt-3">
-            <Button variant="outline" onClick={() => setBrandingSettingsOpen(false)}>
+            <Button variant="outline" onClick={requestCloseBrandingSettings}>
               Cancel
             </Button>
             <Button onClick={handleSaveBrandingSettings} disabled={savingBrandingSettings}>
@@ -2703,8 +3009,45 @@ export default function Builder() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={settingsUnsavedDialogOpen} onOpenChange={setSettingsUnsavedDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Unsaved settings changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in Settings. Do you want to discard these changes and close?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingsUnsavedDialogOpen(false)}>
+              Continue editing
+            </Button>
+            <Button
+              onClick={async () => {
+                setSettingsUnsavedDialogOpen(false);
+                await handleSaveBrandingSettings();
+              }}
+              disabled={savingBrandingSettings}
+            >
+              {savingBrandingSettings ? "Saving..." : "Save and close"}
+            </Button>
+            <Button variant="destructive" onClick={discardBuilderSettingsChanges}>
+              Discard changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Product Settings Dialog */}
-      <Dialog open={productEditOpen} onOpenChange={setProductEditOpen}>
+      <Dialog
+        open={productEditOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setProductEditOpen(true);
+            return;
+          }
+          requestCloseProductEditDialog();
+        }}
+      >
         <DialogContent
           className={`${
             productEditForm.unitsEnabled && productEditForm.unitNumberingMode === "custom"
@@ -2720,11 +3063,39 @@ export default function Builder() {
           </DialogHeader>
           <ProductFormFields form={productEditForm} onChange={setProductEditForm} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setProductEditOpen(false)}>
+            <Button variant="outline" onClick={requestCloseProductEditDialog}>
               Cancel
             </Button>
             <Button onClick={handleSaveProductEdit} disabled={savingProductEdit}>
               {savingProductEdit ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={productEditUnsavedDialogOpen} onOpenChange={setProductEditUnsavedDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Unsaved product changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes in Product Settings. Do you want to save before closing?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProductEditUnsavedDialogOpen(false)}>
+              Continue editing
+            </Button>
+            <Button
+              onClick={async () => {
+                setProductEditUnsavedDialogOpen(false);
+                await handleSaveProductEdit();
+              }}
+              disabled={savingProductEdit}
+            >
+              {savingProductEdit ? "Saving..." : "Save and close"}
+            </Button>
+            <Button variant="destructive" onClick={discardProductEditChanges}>
+              Discard changes
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -14,6 +14,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   signInWithMicrosoft: () => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
 }
 
@@ -53,12 +54,22 @@ setUser(session?.user ? mapSupabaseUser(session.user) : null);
     return { error: error?.message ?? null };
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, signInWithMicrosoft, logout }}>
+    <AuthContext.Provider
+      value={{ user, isAuthenticated: !!user, loading, signInWithMicrosoft, signInWithGoogle, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

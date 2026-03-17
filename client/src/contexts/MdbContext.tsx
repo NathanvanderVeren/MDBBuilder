@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import {
+  ALL_SECTIONS,
   DEFAULT_SECTION_CATEGORIES,
   CATEGORY_LABELS,
   CATEGORY_COLORS,
@@ -31,6 +32,8 @@ interface MdbContextType {
   removeSection: (id: string) => void;
   reorderSections: (from: number, to: number) => void;
   updateSectionTitle: (id: string, title: string) => void;
+  updateSectionCode: (id: string, code: string) => void;
+  updateSectionDescription: (id: string, description: string) => void;
   setLogoUrl: (url: string | null) => void;
   setPrimaryColor: (color: string) => void;
   resetProject: () => void;
@@ -59,7 +62,7 @@ const CHAPTER_COLOR_ROTATION = [
 const defaultState: MdbState = {
   info: defaultInfo,
   sections: [],
-  chapterOrder: [...DEFAULT_SECTION_CATEGORIES],
+  chapterOrder: [],
   chapterMeta: Object.fromEntries(
     DEFAULT_SECTION_CATEGORIES.map((category) => [
       category,
@@ -73,12 +76,15 @@ const defaultState: MdbState = {
   primaryColor: "#3B82F6",
 };
 
+const INDEX_SECTION = ALL_SECTIONS.find((section) => section.id === "mdb-index") as MdbSection;
+
 function normalizeSections(
   sections: MdbSection[],
   chapterOrder: SectionCategory[]
 ): MdbSection[] {
   const indexSection = sections.find((section) => section.id === "mdb-index");
   const nonIndexSections = sections.filter((section) => section.id !== "mdb-index");
+  const shouldIncludeIndex = chapterOrder.length > 0 || nonIndexSections.length > 0;
 
   const orderedSections = chapterOrder.flatMap((category) =>
     nonIndexSections.filter((section) => section.category === category)
@@ -89,10 +95,10 @@ function normalizeSections(
   );
 
   const normalized = [...orderedSections, ...leftoverSections];
-  if (!indexSection) return normalized;
+  if (!shouldIncludeIndex) return normalized;
 
   return [
-    indexSection,
+    indexSection || INDEX_SECTION,
     ...normalized,
   ];
 }
@@ -125,6 +131,7 @@ export function MdbProvider({ children }: { children: ReactNode }) {
     const chapterId = `chapter-${Date.now().toString(36)}`;
     setState((prev) => ({
       ...prev,
+      sections: normalizeSections(prev.sections, [...prev.chapterOrder, chapterId]),
       chapterOrder: [...prev.chapterOrder, chapterId],
       chapterMeta: {
         ...prev.chapterMeta,
@@ -141,8 +148,6 @@ export function MdbProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeChapter = useCallback((chapterId: SectionCategory) => {
-    if (chapterId === "general") return;
-
     setState((prev) => {
       const nextChapterOrder = prev.chapterOrder.filter((id) => id !== chapterId);
       const nextChapterMeta = { ...prev.chapterMeta };
@@ -224,7 +229,10 @@ export function MdbProvider({ children }: { children: ReactNode }) {
   const removeSection = useCallback((id: string) => {
     setState((prev) => ({
       ...prev,
-      sections: prev.sections.filter((s) => s.id !== id),
+      sections: normalizeSections(
+        prev.sections.filter((s) => s.id !== id),
+        prev.chapterOrder
+      ),
     }));
   }, []);
 
@@ -247,6 +255,20 @@ export function MdbProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const updateSectionCode = useCallback((id: string, code: string) => {
+    setState((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) => (s.id === id ? { ...s, code } : s)),
+    }));
+  }, []);
+
+  const updateSectionDescription = useCallback((id: string, description: string) => {
+    setState((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) => (s.id === id ? { ...s, description } : s)),
+    }));
+  }, []);
+
   const setLogoUrl = useCallback((url: string | null) => {
     setState((prev) => ({ ...prev, logoUrl: url }));
   }, []);
@@ -260,7 +282,10 @@ export function MdbProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadState = useCallback((savedState: MdbState) => {
-    setState(savedState);
+    setState({
+      ...savedState,
+      sections: normalizeSections(savedState.sections, savedState.chapterOrder),
+    });
   }, []);
 
   return (
@@ -279,6 +304,8 @@ export function MdbProvider({ children }: { children: ReactNode }) {
         removeSection,
         reorderSections,
         updateSectionTitle,
+        updateSectionCode,
+        updateSectionDescription,
         setLogoUrl,
         setPrimaryColor,
         resetProject,

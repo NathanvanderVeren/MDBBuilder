@@ -1,8 +1,59 @@
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import type { AuthenticatedRequest } from "../middleware/auth.js";
 
 const router = Router();
+
+type UnitNumberingMode = "auto" | "custom";
+
+function normalizeUnitSettings(input: {
+  unitsEnabled?: unknown;
+  unitCount?: unknown;
+  unitNumberingMode?: unknown;
+  customUnitNumbers?: unknown;
+}) {
+  const unitsEnabled = input.unitsEnabled === true;
+  const parsedCount = Number(input.unitCount);
+  const unitCount = Number.isFinite(parsedCount)
+    ? Math.max(1, Math.min(500, Math.floor(parsedCount)))
+    : 1;
+  const unitNumberingMode: UnitNumberingMode =
+    input.unitNumberingMode === "custom" ? "custom" : "auto";
+
+  if (!unitsEnabled) {
+    return {
+      unitsEnabled: false,
+      unitCount: 1,
+      unitNumberingMode: "auto" as UnitNumberingMode,
+      customUnitNumbers: Prisma.DbNull,
+    };
+  }
+
+  if (unitNumberingMode === "custom") {
+    const values = Array.isArray(input.customUnitNumbers)
+      ? input.customUnitNumbers.map((value) => String(value ?? "").trim()).filter(Boolean)
+      : [];
+
+    if (values.length !== unitCount) {
+      return { error: "For custom numbering, provide exactly one unit number per unit." } as const;
+    }
+
+    return {
+      unitsEnabled: true,
+      unitCount,
+      unitNumberingMode,
+      customUnitNumbers: values,
+    };
+  }
+
+  return {
+    unitsEnabled: true,
+    unitCount,
+    unitNumberingMode,
+    customUnitNumbers: Prisma.DbNull,
+  };
+}
 
 // List products for a project
 router.get("/project/:projectId", async (req: AuthenticatedRequest, res) => {
@@ -22,14 +73,17 @@ router.get("/project/:projectId", async (req: AuthenticatedRequest, res) => {
         productName: true,
         tagNumber: true,
         mdbDocumentNumber: true,
-        supplierName: true,
-        supplierProjectNumber: true,
+        unitsEnabled: true,
+        unitCount: true,
+        unitNumberingMode: true,
+        customUnitNumbers: true,
         createdAt: true,
         updatedAt: true,
       },
     });
     res.json({ products });
-  } catch {
+  } catch (error) {
+    console.error("Failed to list products", error);
     res.status(500).json({ error: "Failed to list products" });
   }
 });
@@ -40,7 +94,18 @@ router.get("/:id", async (req: AuthenticatedRequest, res) => {
     const product = await prisma.product.findUnique({
       where: { id: req.params.id },
       include: {
-        project: { select: { userId: true, projectName: true, customerName: true } },
+        project: {
+          select: {
+            userId: true,
+            projectNumber: true,
+            projectName: true,
+            customerName: true,
+            customerProjectNumber: true,
+            coverStyle: true,
+            dividerStyle: true,
+            fontFamily: true,
+          },
+        },
       },
     });
 
@@ -56,37 +121,67 @@ router.get("/:id", async (req: AuthenticatedRequest, res) => {
         productName: product.productName,
         tagNumber: product.tagNumber,
         mdbDocumentNumber: product.mdbDocumentNumber,
-        supplierName: product.supplierName,
-        supplierProjectNumber: product.supplierProjectNumber,
+        unitsEnabled: product.unitsEnabled,
+        unitCount: product.unitCount,
+        unitNumberingMode: product.unitNumberingMode,
+        customUnitNumbers: product.customUnitNumbers,
         mdbData: product.mdbData,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
+        projectNumber: product.project.projectNumber,
         projectName: product.project.projectName,
         projectCustomerName: product.project.customerName,
+        projectCustomerProjectNumber: product.project.customerProjectNumber,
+        coverStyle: product.project.coverStyle,
+        dividerStyle: product.project.dividerStyle,
+        fontFamily: product.project.fontFamily,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("Failed to get product", error);
     res.status(500).json({ error: "Failed to get product" });
   }
 });
 
 // Create a product
 router.post("/", async (req: AuthenticatedRequest, res) => {
-  const { projectId, productName, tagNumber, mdbDocumentNumber, supplierName, supplierProjectNumber } = req.body as {
+  const {
+    projectId,
+    productName,
+    tagNumber,
+    mdbDocumentNumber,
+    unitsEnabled,
+    unitCount,
+    unitNumberingMode,
+    customUnitNumbers,
+  } = req.body as {
     projectId: string;
     productName: string;
-    tagNumber: string;
-    mdbDocumentNumber: string;
-    supplierName?: string;
-    supplierProjectNumber?: string;
+    tagNumber?: string | null;
+    mdbDocumentNumber?: string | null;
+    unitsEnabled?: boolean;
+    unitCount?: number;
+    unitNumberingMode?: UnitNumberingMode;
+    customUnitNumbers?: string[];
   };
 
-  if (!projectId || !productName || !tagNumber || !mdbDocumentNumber) {
-    res.status(400).json({ error: "projectId, productName, tagNumber, and mdbDocumentNumber are required" });
+  if (!projectId || !productName?.trim()) {
+    res.status(400).json({ error: "projectId and productName are required" });
     return;
   }
 
   try {
+    const normalizedUnits = normalizeUnitSettings({
+      unitsEnabled,
+      unitCount,
+      unitNumberingMode,
+      customUnitNumbers,
+    });
+    if ("error" in normalizedUnits) {
+      res.status(400).json({ error: normalizedUnits.error });
+      return;
+    }
+
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project || project.userId !== req.userId) {
       res.status(403).json({ error: "Forbidden" });
@@ -96,11 +191,13 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     const product = await prisma.product.create({
       data: {
         projectId,
-        productName,
-        tagNumber,
-        mdbDocumentNumber,
-        supplierName: supplierName || null,
-        supplierProjectNumber: supplierProjectNumber || null,
+        productName: productName.trim(),
+        tagNumber: tagNumber?.trim() || null,
+        mdbDocumentNumber: mdbDocumentNumber?.trim() || null,
+        unitsEnabled: normalizedUnits.unitsEnabled,
+        unitCount: normalizedUnits.unitCount,
+        unitNumberingMode: normalizedUnits.unitNumberingMode,
+        customUnitNumbers: normalizedUnits.customUnitNumbers,
       },
       select: {
         id: true,
@@ -108,26 +205,39 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
         productName: true,
         tagNumber: true,
         mdbDocumentNumber: true,
-        supplierName: true,
-        supplierProjectNumber: true,
+        unitsEnabled: true,
+        unitCount: true,
+        unitNumberingMode: true,
+        customUnitNumbers: true,
         createdAt: true,
         updatedAt: true,
       },
     });
     res.json({ product });
-  } catch {
+  } catch (error) {
+    console.error("Failed to create product", error);
     res.status(500).json({ error: "Failed to create product" });
   }
 });
 
 // Update product metadata
 router.patch("/:id", async (req: AuthenticatedRequest, res) => {
-  const { productName, tagNumber, mdbDocumentNumber, supplierName, supplierProjectNumber } = req.body as {
+  const {
+    productName,
+    tagNumber,
+    mdbDocumentNumber,
+    unitsEnabled,
+    unitCount,
+    unitNumberingMode,
+    customUnitNumbers,
+  } = req.body as {
     productName?: string;
-    tagNumber?: string;
-    mdbDocumentNumber?: string;
-    supplierName?: string | null;
-    supplierProjectNumber?: string | null;
+    tagNumber?: string | null;
+    mdbDocumentNumber?: string | null;
+    unitsEnabled?: boolean;
+    unitCount?: number;
+    unitNumberingMode?: UnitNumberingMode;
+    customUnitNumbers?: string[];
   };
 
   try {
@@ -140,14 +250,37 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
       return;
     }
 
+    const hasUnitsUpdate =
+      unitsEnabled !== undefined ||
+      unitCount !== undefined ||
+      unitNumberingMode !== undefined ||
+      customUnitNumbers !== undefined;
+    const normalizedUnits = hasUnitsUpdate
+      ? normalizeUnitSettings({
+          unitsEnabled: unitsEnabled ?? product.unitsEnabled,
+          unitCount: unitCount ?? product.unitCount,
+          unitNumberingMode: unitNumberingMode ?? product.unitNumberingMode,
+          customUnitNumbers: customUnitNumbers ?? product.customUnitNumbers,
+        })
+      : null;
+
+    if (normalizedUnits && "error" in normalizedUnits) {
+      res.status(400).json({ error: normalizedUnits.error });
+      return;
+    }
+
     const updated = await prisma.product.update({
       where: { id: req.params.id },
       data: {
-        ...(productName !== undefined && { productName }),
-        ...(tagNumber !== undefined && { tagNumber }),
-        ...(mdbDocumentNumber !== undefined && { mdbDocumentNumber }),
-        ...(supplierName !== undefined && { supplierName }),
-        ...(supplierProjectNumber !== undefined && { supplierProjectNumber }),
+        ...(productName !== undefined && { productName: productName.trim() }),
+        ...(tagNumber !== undefined && { tagNumber: tagNumber?.trim() || null }),
+        ...(mdbDocumentNumber !== undefined && { mdbDocumentNumber: mdbDocumentNumber?.trim() || null }),
+        ...(normalizedUnits && {
+          unitsEnabled: normalizedUnits.unitsEnabled,
+          unitCount: normalizedUnits.unitCount,
+          unitNumberingMode: normalizedUnits.unitNumberingMode,
+          customUnitNumbers: normalizedUnits.customUnitNumbers,
+        }),
       },
       select: {
         id: true,
@@ -155,14 +288,17 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
         productName: true,
         tagNumber: true,
         mdbDocumentNumber: true,
-        supplierName: true,
-        supplierProjectNumber: true,
+        unitsEnabled: true,
+        unitCount: true,
+        unitNumberingMode: true,
+        customUnitNumbers: true,
         createdAt: true,
         updatedAt: true,
       },
     });
     res.json({ product: updated });
-  } catch {
+  } catch (error) {
+    console.error("Failed to update product", error);
     res.status(500).json({ error: "Failed to update product" });
   }
 });
@@ -191,7 +327,8 @@ router.patch("/:id/mdb", async (req: AuthenticatedRequest, res) => {
       data: { mdbData },
     });
     res.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Failed to save MDB data", error);
     res.status(500).json({ error: "Failed to save MDB data" });
   }
 });
@@ -210,7 +347,8 @@ router.delete("/:id", async (req: AuthenticatedRequest, res) => {
 
     await prisma.product.delete({ where: { id: req.params.id } });
     res.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Failed to delete product", error);
     res.status(500).json({ error: "Failed to delete product" });
   }
 });

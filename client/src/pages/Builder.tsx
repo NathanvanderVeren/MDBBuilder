@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Builder Page — Split-panel workspace
  * Left: Section library + templates
  * Center: Drag-and-drop builder
@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -29,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
@@ -39,24 +41,61 @@ import {
   Trash2,
   GripVertical,
   Info,
-  Upload,
+  Pencil,
   FileDown,
+  Archive,
   LogOut,
   ChevronLeft,
   Search,
   Lightbulb,
   AlertTriangle,
-  Palette,
   LayoutTemplate,
   Save,
+  Settings,
+  Lock,
+  ExternalLink,
 } from "lucide-react";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
-import { generatePdf } from "@/lib/pdf-generator";
-import { getProduct, saveMdbData, type ProductWithMdb } from "@/lib/products";
+import { generatePdf, generatePdfBlob, generatePdfZip, generatePdfZipEntries } from "@/lib/pdf-generator";
+import JSZip from "jszip";
+import { getProduct, saveMdbData, updateProduct, type ProductWithMdb } from "@/lib/products";
+import { updateProject } from "@/lib/projects";
+import {
+  ProductFormFields,
+  type ProductForm,
+  emptyProductForm,
+  alignCustomUnitNumbers,
+  countEmptyCustomUnitNumbers,
+} from "@/components/ProductFormFields";
+import { getBrandingSettings, saveBrandingSettings, type BrandingSettings } from "@/lib/branding";
+import {
+  COVER_STYLE_OPTIONS,
+  DEFAULT_PROJECT_DOCUMENT_STYLE,
+  DIVIDER_STYLE_OPTIONS,
+  FONT_FAMILY_OPTIONS,
+  getPreviewFontFamily,
+  normalizeProjectDocumentStyle,
+  type ProjectDocumentStyle,
+} from "@/lib/document-styles";
+import {
+  createLibraryCategory,
+  createLibrarySection,
+  getLibrary,
+  updateLibraryCategory,
+  updateLibrarySection,
+  type LibraryCategory,
+  type LibrarySection,
+} from "@/lib/library";
+import ThemeToggle from "@/components/ThemeToggle";
+import BizzBitLogo from "@/components/BizzBitLogo";
+import { motion } from "framer-motion";
 
-const LOGO_PNG =
-  "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/BizzBit%20Logo%20large_88d9f1c2.png";
+type SectionDraft = {
+  title: string;
+  code: string;
+  description: string;
+};
 
 const COLOR_PRESETS = [
   "#3B82F6",
@@ -68,6 +107,173 @@ const COLOR_PRESETS = [
   "#EC4899",
   "#F97316",
 ];
+
+function StyleOptionCard({
+  selected,
+  label,
+  description,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  label: string;
+  description: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl border p-3 text-left transition-all ${
+        selected
+          ? "border-primary bg-primary/5 shadow-sm"
+          : "border-border/70 bg-muted/10 hover:border-primary/40 hover:bg-muted/20"
+      }`}
+    >
+      <div className="mb-3 overflow-hidden rounded-lg border border-border/50 bg-background">{children}</div>
+      <div className="space-y-1">
+        <div className="text-sm font-semibold text-foreground">{label}</div>
+        <div className="text-xs leading-relaxed text-muted-foreground">{description}</div>
+      </div>
+    </button>
+  );
+}
+
+function CoverStylePreview({
+  style,
+  color,
+  fontFamily,
+  companyName,
+}: {
+  style: ProjectDocumentStyle["coverStyle"];
+  color: string;
+  fontFamily: ProjectDocumentStyle["fontFamily"];
+  companyName: string;
+}) {
+  const previewFont = getPreviewFontFamily(fontFamily);
+
+  if (style === "split") {
+    return (
+      <div className="grid h-28 grid-cols-[30%_1fr]" style={{ fontFamily: previewFont }}>
+        <div className="p-3 text-white" style={{ backgroundColor: color }}>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-white/70">Cover</div>
+          <div className="mt-7 text-2xl font-bold">MDB</div>
+        </div>
+        <div className="flex flex-col justify-between bg-card p-3">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Manufacturing Data Book</div>
+          <div className="space-y-1">
+            <div className="text-sm font-semibold text-foreground">Project Atlas Compressor</div>
+            <div className="text-xs text-muted-foreground">Unit package documentation preview</div>
+          </div>
+          <div className="text-[10px] text-muted-foreground">{companyName || "Your Company"}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (style === "angled") {
+    return (
+      <div className="relative h-28 overflow-hidden bg-card p-3" style={{ fontFamily: previewFont }}>
+        <div
+          className="absolute -right-6 -top-6 h-24 w-32 rotate-[-18deg] rounded-sm opacity-90"
+          style={{ backgroundColor: color }}
+        />
+        <div className="relative z-10 flex h-full flex-col justify-between">
+          <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Project Style</div>
+          <div>
+            <div className="text-lg font-bold text-foreground">Manufacturing Data Book</div>
+            <div className="mt-1 text-xs text-muted-foreground">Technical dossier with angled identity band</div>
+          </div>
+          <div className="text-[10px] text-muted-foreground">{companyName || "Your Company"}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-28 bg-card" style={{ fontFamily: previewFont }}>
+      <div className="h-7" style={{ backgroundColor: color }} />
+      <div className="space-y-2 p-3">
+        <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Classic Cover</div>
+        <div className="text-lg font-bold text-foreground">Manufacturing Data Book</div>
+        <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
+          <div className="rounded bg-muted/30 px-2 py-1">Project data</div>
+          <div className="rounded bg-muted/30 px-2 py-1">Product data</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DividerStylePreview({
+  style,
+  color,
+  fontFamily,
+}: {
+  style: ProjectDocumentStyle["dividerStyle"];
+  color: string;
+  fontFamily: ProjectDocumentStyle["fontFamily"];
+}) {
+  const previewFont = getPreviewFontFamily(fontFamily);
+
+  if (style === "panel") {
+    return (
+      <div className="h-24" style={{ fontFamily: previewFont }}>
+        <div className="h-14 px-3 pt-2 text-white" style={{ backgroundColor: color }}>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-white/70">Chapter</div>
+          <div className="mt-1 text-3xl font-bold">03</div>
+        </div>
+        <div className="flex h-10 items-center bg-card px-3">
+          <div className="text-sm font-semibold text-foreground">Welder Qualifications</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (style === "minimal") {
+    return (
+      <div className="relative h-24 bg-card p-3" style={{ fontFamily: previewFont }}>
+        <div className="absolute left-0 top-0 h-full w-1" style={{ backgroundColor: color }} />
+        <div className="flex h-full flex-col justify-center gap-1 pl-3">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">03.2</div>
+          <div className="text-sm font-semibold text-foreground">Welder Qualifications</div>
+          <div className="text-[10px] text-muted-foreground">Minimal metadata treatment</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-24 overflow-hidden bg-card" style={{ fontFamily: previewFont }}>
+      <div className="absolute left-0 top-0 h-full w-3" style={{ backgroundColor: color }} />
+      <div className="flex h-full flex-col justify-center gap-1 px-4 pl-7">
+        <div className="text-3xl font-bold text-muted-foreground/40">03</div>
+        <div className="text-sm font-semibold text-foreground">Welding Procedures</div>
+      </div>
+    </div>
+  );
+}
+
+function sanitizeExportFileName(value: string): string {
+  const sanitized = value
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.\s]+$/g, "");
+  return sanitized || "export";
+}
+
+function downloadFileBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 export default function Builder() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -82,45 +288,85 @@ export default function Builder() {
     updateChapterColor,
     addCustomSubchapter,
     updateSectionTitle,
+    updateSectionCode,
+    updateSectionDescription,
     addSection,
     removeSection,
     setLogoUrl,
     setPrimaryColor,
     loadState,
+    resetProject,
   } = useMdb();
   const { productId } = useParams<{ productId: string }>();
   const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<SectionCategory | "all">("all");
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [templateWarningOpen, setTemplateWarningOpen] = useState(false);
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingZip, setGeneratingZip] = useState(false);
   const [saving, setSaving] = useState(false);
   const [product, setProduct] = useState<ProductWithMdb | null>(null);
   const [loadingProduct, setLoadingProduct] = useState(true);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryCategories, setLibraryCategories] = useState<LibraryCategory[]>([]);
+  const [librarySections, setLibrarySections] = useState<LibrarySection[]>([]);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<LibraryCategory | null>(null);
+  const [editingSection, setEditingSection] = useState<LibrarySection | null>(null);
+  const [categoryName, setCategoryName] = useState("");
+  const [categoryColor, setCategoryColor] = useState("#6B7280");
+  const [sectionCategoryId, setSectionCategoryId] = useState("");
+  const [sectionTitle, setSectionTitle] = useState("");
+  const [sectionCode, setSectionCode] = useState("");
+  const [sectionDescription, setSectionDescription] = useState("");
+  const [savingLibrary, setSavingLibrary] = useState(false);
   const [draggingChapter, setDraggingChapter] = useState<SectionCategory | null>(null);
   const [isChapterPointerDragging, setIsChapterPointerDragging] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
   const [dragChapterPreviewTarget, setDragChapterPreviewTarget] = useState<string | null>(null);
   const [dragPreviewTarget, setDragPreviewTarget] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Wait for auth check before redirecting
-  if (authLoading) return null;
-  if (!user) {
-    navigate("/");
-    return null;
-  }
-
-  if (loadingProduct) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background text-muted-foreground gap-3">
-        <span className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-        Loading MDB…
-      </div>
-    );
-  }
+  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [savingBeforeExit, setSavingBeforeExit] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [selectedUnitNumbers, setSelectedUnitNumbers] = useState<string[]>([]);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "zip">("pdf");
+  const [productEditOpen, setProductEditOpen] = useState(false);
+  const [productEditForm, setProductEditForm] = useState<ProductForm>(emptyProductForm());
+  const [savingProductEdit, setSavingProductEdit] = useState(false);
+  const [productEditValidationOpen, setProductEditValidationOpen] = useState(false);
+  const [productEditValidationMissing, setProductEditValidationMissing] = useState(0);
+  const [brandingSettingsOpen, setBrandingSettingsOpen] = useState(false);
+  const [savingBrandingSettings, setSavingBrandingSettings] = useState(false);
+  const [projectStyle, setProjectStyle] = useState<ProjectDocumentStyle>(DEFAULT_PROJECT_DOCUMENT_STYLE);
+  const [sectionEditDialogOpen, setSectionEditDialogOpen] = useState(false);
+  const [sectionEditMode, setSectionEditMode] = useState<"create" | "edit">("edit");
+  const [sectionEditTargetId, setSectionEditTargetId] = useState<string | null>(null);
+  const [sectionEditTargetCategory, setSectionEditTargetCategory] = useState<SectionCategory | null>(null);
+  const [sectionDraft, setSectionDraft] = useState<SectionDraft>({
+    title: "",
+    code: "",
+    description: "",
+  });
+  const [branding, setBranding] = useState<BrandingSettings>({
+    companyName: user?.company || null,
+    logoUrl: null,
+    primaryColor: "#3B82F6",
+  });
+  const [settingsBranding, setSettingsBranding] = useState<BrandingSettings>({
+    companyName: user?.company || null,
+    logoUrl: null,
+    primaryColor: "#3B82F6",
+  });
+  const [builderBrandingLogoDragActive, setBuilderBrandingLogoDragActive] = useState(false);
+  const [projectStyleDraft, setProjectStyleDraft] = useState<ProjectDocumentStyle>(
+    DEFAULT_PROJECT_DOCUMENT_STYLE
+  );
+  const baselineStateRef = useRef<string | null>(null);
+  const pendingExitActionRef = useRef<null | (() => void | Promise<void>)>(null);
 
   const selectedIds = new Set(state.sections.map((s) => s.id));
   const chapterCount = state.sections.filter((section) => section.id !== "mdb-index").length;
@@ -134,6 +380,81 @@ export default function Builder() {
   const getChapterColor = useCallback(
     (chapterId: SectionCategory) => state.chapterMeta[chapterId]?.color || CATEGORY_COLORS[chapterId] || "#6B7280",
     [state.chapterMeta]
+  );
+
+  const refreshLibrary = useCallback(async () => {
+    setLibraryLoading(true);
+    try {
+      const data = await getLibrary();
+      setLibraryCategories(data.categories);
+      setLibrarySections(data.sections.filter((section) => section.key !== "mdb-index"));
+    } catch (error) {
+      toast.error("Failed to load section library", { description: String(error) });
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    void refreshLibrary();
+  }, [refreshLibrary, authLoading, user]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+
+    let cancelled = false;
+
+    async function loadBranding() {
+      const { branding: loadedBranding, error } = await getBrandingSettings();
+      if (cancelled) return;
+      if (error) {
+        toast.error("Failed to load branding settings", { description: error });
+        return;
+      }
+
+      setBranding({
+        companyName: loadedBranding.companyName ?? user?.company ?? null,
+        logoUrl: loadedBranding.logoUrl,
+        primaryColor: loadedBranding.primaryColor,
+        marketingConsent: loadedBranding.marketingConsent,
+      });
+      setSettingsBranding({
+        companyName: loadedBranding.companyName ?? user?.company ?? null,
+        logoUrl: loadedBranding.logoUrl,
+        primaryColor: loadedBranding.primaryColor,
+        marketingConsent: loadedBranding.marketingConsent,
+      });
+    }
+
+    void loadBranding();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
+
+  useEffect(() => {
+    setLogoUrl(branding.logoUrl);
+    setPrimaryColor(branding.primaryColor);
+  }, [branding.logoUrl, branding.primaryColor, setLogoUrl, setPrimaryColor]);
+
+  const librarySectionByKey = useMemo(
+    () => new Map(librarySections.map((section) => [section.key, section])),
+    [librarySections]
+  );
+
+  const ensureChapterForLibraryCategory = useCallback(
+    (categoryKey: string, categoryName: string, color: string) => {
+      if (!state.chapterOrder.includes(categoryKey)) {
+        setChapterOrder([...state.chapterOrder, categoryKey]);
+      }
+      if (!state.chapterMeta[categoryKey]) {
+        updateChapterTitle(categoryKey, categoryName);
+        updateChapterColor(categoryKey, color);
+      }
+    },
+    [state.chapterOrder, state.chapterMeta, setChapterOrder, updateChapterTitle, updateChapterColor]
   );
 
   const sectionsByCategory = useMemo(() => {
@@ -248,15 +569,16 @@ export default function Builder() {
 
   useEffect(() => {
     if (activeCategory === "all") return;
-    if (!state.chapterOrder.includes(activeCategory)) {
+    if (!libraryCategories.some((category) => category.key === activeCategory)) {
       setActiveCategory("all");
     }
-  }, [activeCategory, state.chapterOrder]);
+  }, [activeCategory, libraryCategories]);
 
   const filteredSections = useMemo(() => {
-    return ALL_SECTIONS.filter((s) => {
-      if (selectedIds.has(s.id)) return false;
-      if (activeCategory !== "all" && s.category !== activeCategory) return false;
+    return librarySections.filter((s) => {
+      if (s.key === "mdb-index") return false;
+      if (selectedIds.has(s.key)) return false;
+      if (activeCategory !== "all" && s.categoryKey !== activeCategory) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
@@ -267,12 +589,11 @@ export default function Builder() {
       }
       return true;
     });
-  }, [searchQuery, activeCategory, selectedIds]);
+  }, [librarySections, searchQuery, activeCategory, selectedIds]);
 
   // Completeness score
   const completenessScore = useMemo(() => {
     if (state.sections.length === 0) return 0;
-    const hasIndex = state.sections.some((s) => s.id === "mdb-index");
     const hasItp = state.sections.some((s) => s.id === "itp");
     const hasMtc = state.sections.some((s) => s.id === "mtc");
     const hasWelding = state.sections.some(
@@ -288,11 +609,11 @@ export default function Builder() {
     const hasCerts = state.sections.some(
       (s) => s.category === "certificates"
     );
-    const hasLogo = !!state.logoUrl;
+    const hasLogo = !!branding.logoUrl;
+    const hasCompanyName = !!branding.companyName?.trim();
     const hasProjectName = !!state.info.projectName;
 
     const checks = [
-      hasIndex,
       hasItp,
       hasMtc,
       hasWelding,
@@ -301,16 +622,15 @@ export default function Builder() {
       hasDrawings,
       hasCerts,
       hasLogo,
+      hasCompanyName,
       hasProjectName,
     ];
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }, [state]);
+  }, [state, branding.logoUrl, branding.companyName]);
 
   // Suggestions
   const suggestions = useMemo(() => {
     const tips: string[] = [];
-    if (!state.sections.some((s) => s.id === "mdb-index"))
-      tips.push("Add an MDB Index for a complete table of contents");
     if (!state.sections.some((s) => s.id === "itp"))
       tips.push("Add an Inspection & Test Plan (ITP) — required for most projects");
     if (
@@ -324,138 +644,832 @@ export default function Builder() {
     )
       tips.push("You have WPS but no WPQ — add Welder Performance Qualifications");
     if (!state.info.projectName) tips.push("Fill in your project name for the cover page");
-    if (!state.logoUrl) tips.push("Upload your company logo for branded output");
+    if (!branding.companyName?.trim()) tips.push("Set your company name in Settings for branded output");
+    if (!branding.logoUrl) tips.push("Upload your company logo in Settings for branded output");
     return tips;
-  }, [state]);
+  }, [state, branding.companyName, branding.logoUrl]);
 
-  const handleLogoUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLogoUrl(reader.result as string);
-        toast.success("Logo uploaded successfully");
+  const unitNumbers = useMemo(() => {
+    if (!product?.unitsEnabled) return [] as string[];
+
+    const count = Math.max(1, product.unitCount || 1);
+    if (product.unitNumberingMode === "custom") {
+      return (product.customUnitNumbers ?? [])
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .slice(0, count);
+    }
+
+    return Array.from({ length: count }, (_, index) => String(index + 1));
+  }, [product]);
+
+  const buildExportState = useCallback(
+    (unitNumber?: string) => {
+      const baseDocumentNumber = product?.mdbDocumentNumber || state.info.documentNumber || "MDB";
+      return {
+        ...state,
+        logoUrl: branding.logoUrl,
+        primaryColor: branding.primaryColor,
+        info: {
+          ...state.info,
+          documentNumber: unitNumber ? `${baseDocumentNumber} - ${unitNumber}` : baseDocumentNumber,
+        },
+        brandingData: {
+          companyName: branding.companyName || undefined,
+        },
+        documentStyle: projectStyle,
+        projectData: {
+          projectNumber: product?.projectNumber,
+          projectName: product?.projectName || state.info.projectName,
+          customerName: product?.projectCustomerName || state.info.clientName,
+          customerProjectNumber: product?.projectCustomerProjectNumber || undefined,
+        },
+        productData: {
+          productName: product?.productName,
+          tagNumber: product?.tagNumber || undefined,
+          mdbDocumentNumber: baseDocumentNumber,
+        },
+        unitNumber,
       };
-      reader.readAsDataURL(file);
     },
-    [setLogoUrl]
+    [branding.companyName, branding.logoUrl, branding.primaryColor, product, projectStyle, state]
+  );
+
+  const currentStateSnapshot = useMemo(() => JSON.stringify(state), [state]);
+  const hasUnsavedChanges = useMemo(() => {
+    if (authLoading || loadingProduct) return false;
+    if (baselineStateRef.current === null) return false;
+    return baselineStateRef.current !== currentStateSnapshot;
+  }, [authLoading, loadingProduct, currentStateSnapshot]);
+
+  const executePendingExit = useCallback(async () => {
+    const action = pendingExitActionRef.current;
+    pendingExitActionRef.current = null;
+    setUnsavedDialogOpen(false);
+    if (!action) return;
+    await action();
+  }, []);
+
+  const requestExit = useCallback(
+    (action: () => void | Promise<void>) => {
+      if (!hasUnsavedChanges) {
+        void Promise.resolve(action());
+        return;
+      }
+      pendingExitActionRef.current = action;
+      setUnsavedDialogOpen(true);
+    },
+    [hasUnsavedChanges]
   );
 
   const handleApplyTemplate = useCallback(
     (templateId: string) => {
       const template = SECTOR_TEMPLATES.find((t) => t.id === templateId);
       if (!template) return;
+
+      const nextChapterOrder = [...state.chapterOrder];
+      const chapterSet = new Set(nextChapterOrder);
+
       const sections = template.sectionIds
-        .map((id) => ALL_SECTIONS.find((s) => s.id === id))
+        .map((key) => {
+          const librarySection = librarySectionByKey.get(key);
+          if (librarySection) {
+            if (!chapterSet.has(librarySection.categoryKey)) {
+              chapterSet.add(librarySection.categoryKey);
+              nextChapterOrder.push(librarySection.categoryKey);
+              if (!state.chapterMeta[librarySection.categoryKey]) {
+                updateChapterTitle(librarySection.categoryKey, librarySection.categoryName);
+                updateChapterColor(librarySection.categoryKey, librarySection.categoryColor);
+              }
+            }
+
+            return {
+              id: librarySection.key,
+              title: librarySection.title,
+              code: librarySection.code,
+              category: librarySection.categoryKey,
+              description: librarySection.description,
+              suggestedSections: librarySection.suggestedSections || undefined,
+            } as MdbSection;
+          }
+
+          const fallbackSection = ALL_SECTIONS.find((s) => s.id === key);
+          if (fallbackSection && !chapterSet.has(fallbackSection.category)) {
+            chapterSet.add(fallbackSection.category);
+            nextChapterOrder.push(fallbackSection.category);
+          }
+          return fallbackSection;
+        })
         .filter(Boolean) as MdbSection[];
+
+      setChapterOrder(nextChapterOrder);
       setSections(sections);
       setTemplateDialogOpen(false);
       toast.success(`Template "${template.name}" applied`, {
         description: `${sections.filter((section) => section.id !== "mdb-index").length} chapters loaded`,
       });
     },
-    [setSections]
+    [
+      state.chapterOrder,
+      state.chapterMeta,
+      setSections,
+      setChapterOrder,
+      librarySectionByKey,
+      updateChapterTitle,
+      updateChapterColor,
+    ]
   );
 
-  const handleExportPdf = useCallback(async () => {
+  const handleTemplateSelect = useCallback(
+    (templateId: string) => {
+      const hasExistingChapters = state.chapterOrder.length > 0;
+      const hasExistingSections = state.sections.some((section) => section.id !== "mdb-index");
+
+      if (hasExistingChapters || hasExistingSections) {
+        setPendingTemplateId(templateId);
+        setTemplateWarningOpen(true);
+        return;
+      }
+
+      handleApplyTemplate(templateId);
+    },
+    [state.chapterOrder.length, state.sections, handleApplyTemplate]
+  );
+
+  const handleConfirmTemplateApply = useCallback(() => {
+    if (!pendingTemplateId) return;
+    handleApplyTemplate(pendingTemplateId);
+    setTemplateWarningOpen(false);
+    setPendingTemplateId(null);
+  }, [pendingTemplateId, handleApplyTemplate]);
+
+  const handleCancelTemplateApply = useCallback(() => {
+    setTemplateWarningOpen(false);
+    setPendingTemplateId(null);
+  }, []);
+
+  const openCreateCategoryDialog = useCallback(() => {
+    setEditingCategory(null);
+    setCategoryName("");
+    setCategoryColor("#6B7280");
+    setCategoryDialogOpen(true);
+  }, []);
+
+  const openEditCategoryDialog = useCallback((category: LibraryCategory) => {
+    setEditingCategory(category);
+    setCategoryName(category.name);
+    setCategoryColor(category.color);
+    setCategoryDialogOpen(true);
+  }, []);
+
+  const saveCategory = useCallback(async () => {
+    if (!categoryName.trim()) {
+      toast.error("Category name is required");
+      return;
+    }
+
+    setSavingLibrary(true);
+    try {
+      if (editingCategory) {
+        await updateLibraryCategory(editingCategory.id, {
+          name: categoryName.trim(),
+          color: categoryColor,
+        });
+        toast.success("Category updated");
+      } else {
+        await createLibraryCategory({
+          name: categoryName.trim(),
+          color: categoryColor,
+        });
+        toast.success("Category created");
+      }
+      setCategoryDialogOpen(false);
+      await refreshLibrary();
+    } catch (error) {
+      toast.error("Failed to save category", { description: String(error) });
+    } finally {
+      setSavingLibrary(false);
+    }
+  }, [categoryName, categoryColor, editingCategory, refreshLibrary]);
+
+  const openCreateSectionDialog = useCallback(() => {
+    setEditingSection(null);
+    setSectionTitle("");
+    setSectionCode("");
+    setSectionDescription("");
+    setSectionCategoryId(libraryCategories[0]?.id || "");
+    setSectionDialogOpen(true);
+  }, [libraryCategories]);
+
+  const openEditSectionDialog = useCallback((section: LibrarySection) => {
+    setEditingSection(section);
+    setSectionTitle(section.title);
+    setSectionCode(section.code);
+    setSectionDescription(section.description);
+    setSectionCategoryId(section.categoryId);
+    setSectionDialogOpen(true);
+  }, []);
+
+  const saveSection = useCallback(async () => {
+    if (!sectionCategoryId || !sectionTitle.trim() || !sectionCode.trim() || !sectionDescription.trim()) {
+      toast.error("Category, title, code, and description are required");
+      return;
+    }
+
+    setSavingLibrary(true);
+    try {
+      if (editingSection) {
+        await updateLibrarySection(editingSection.id, {
+          categoryId: sectionCategoryId,
+          title: sectionTitle.trim(),
+          code: sectionCode.trim(),
+          description: sectionDescription.trim(),
+        });
+        toast.success("Section updated");
+      } else {
+        await createLibrarySection({
+          categoryId: sectionCategoryId,
+          title: sectionTitle.trim(),
+          code: sectionCode.trim(),
+          description: sectionDescription.trim(),
+        });
+        toast.success("Section created");
+      }
+      setSectionDialogOpen(false);
+      await refreshLibrary();
+    } catch (error) {
+      toast.error("Failed to save section", { description: String(error) });
+    } finally {
+      setSavingLibrary(false);
+    }
+  }, [
+    sectionCategoryId,
+    sectionTitle,
+    sectionCode,
+    sectionDescription,
+    editingSection,
+    refreshLibrary,
+  ]);
+
+  const openCreateSubchapterDialog = useCallback((category: SectionCategory) => {
+    setSectionEditMode("create");
+    setSectionEditTargetId(null);
+    setSectionEditTargetCategory(category);
+    setSectionDraft({
+      title: "New Subchapter",
+      code: "CUS",
+      description: "Custom subchapter",
+    });
+    setSectionEditDialogOpen(true);
+  }, []);
+
+  const openEditSubchapterDialog = useCallback((section: MdbSection) => {
+    setSectionEditMode("edit");
+    setSectionEditTargetId(section.id);
+    setSectionEditTargetCategory(section.category);
+    setSectionDraft({
+      title: section.title,
+      code: section.code,
+      description: section.description,
+    });
+    setSectionEditDialogOpen(true);
+  }, []);
+
+  const handleSaveSubchapterDialog = useCallback(() => {
+    const title = sectionDraft.title.trim();
+    const code = sectionDraft.code.trim();
+    const description = sectionDraft.description.trim();
+
+    if (!title || !code || !description) {
+      toast.error("Title, code, and description are required");
+      return;
+    }
+
+    if (sectionEditMode === "create") {
+      if (!sectionEditTargetCategory) {
+        toast.error("Missing target chapter");
+        return;
+      }
+
+      addSection({
+        id: `sub-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`,
+        title,
+        code,
+        category: sectionEditTargetCategory,
+        description,
+      });
+      toast.success("Subchapter added");
+    } else {
+      if (!sectionEditTargetId) {
+        toast.error("Missing target subchapter");
+        return;
+      }
+
+      updateSectionTitle(sectionEditTargetId, title);
+      updateSectionCode(sectionEditTargetId, code);
+      updateSectionDescription(sectionEditTargetId, description);
+      toast.success("Subchapter updated");
+    }
+
+    setSectionEditDialogOpen(false);
+  }, [
+    sectionDraft,
+    sectionEditMode,
+    sectionEditTargetCategory,
+    sectionEditTargetId,
+    addSection,
+    updateSectionTitle,
+    updateSectionCode,
+    updateSectionDescription,
+  ]);
+
+  const openProductEditDialog = useCallback(() => {
+    if (!product) return;
+    setProductEditForm({
+      productName: product.productName,
+      tagNumber: product.tagNumber ?? "",
+      mdbDocumentNumber: product.mdbDocumentNumber ?? "",
+      unitsEnabled: product.unitsEnabled,
+      unitCount: product.unitsEnabled ? Math.max(1, product.unitCount) : 1,
+      unitNumberingMode: product.unitsEnabled ? product.unitNumberingMode : "auto",
+      customUnitNumbers:
+        product.unitsEnabled && product.unitNumberingMode === "custom"
+          ? alignCustomUnitNumbers(product.customUnitNumbers ?? [], Math.max(1, product.unitCount))
+          : [],
+    });
+    setProductEditOpen(true);
+  }, [product]);
+
+  const handleSaveProductEdit = useCallback(async () => {
+    if (!product) return;
+    if (!productEditForm.productName.trim()) {
+      toast.error("Product name is required");
+      return;
+    }
+
+    const unitCount = Math.max(1, Math.min(500, Number(productEditForm.unitCount) || 1));
+    const customUnitNumbers = productEditForm.customUnitNumbers
+      .slice(0, unitCount)
+      .map((v) => v.trim());
+    const emptyCount = countEmptyCustomUnitNumbers(productEditForm);
+
+    if (productEditForm.unitsEnabled && productEditForm.unitNumberingMode === "custom") {
+      if (emptyCount > 0) {
+        setProductEditValidationMissing(emptyCount);
+        setProductEditValidationOpen(true);
+        return;
+      }
+      if (new Set(customUnitNumbers).size !== customUnitNumbers.length) {
+        toast.error("Unit numbers must be unique");
+        return;
+      }
+    }
+
+    setSavingProductEdit(true);
+    const { product: updated, error } = await updateProduct(product.id, {
+      productName: productEditForm.productName.trim(),
+      tagNumber: productEditForm.tagNumber.trim() || null,
+      mdbDocumentNumber: productEditForm.mdbDocumentNumber.trim() || null,
+      unitsEnabled: productEditForm.unitsEnabled,
+      unitCount: productEditForm.unitsEnabled ? unitCount : 1,
+      unitNumberingMode: productEditForm.unitsEnabled ? productEditForm.unitNumberingMode : "auto",
+      customUnitNumbers:
+        productEditForm.unitsEnabled && productEditForm.unitNumberingMode === "custom"
+          ? customUnitNumbers
+          : null,
+    });
+    setSavingProductEdit(false);
+
+    if (error || !updated) {
+      toast.error("Failed to update product", { description: error ?? undefined });
+      return;
+    }
+
+    setProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            productName: updated.productName,
+            tagNumber: updated.tagNumber,
+            mdbDocumentNumber: updated.mdbDocumentNumber,
+            unitsEnabled: updated.unitsEnabled,
+            unitCount: updated.unitCount,
+            unitNumberingMode: updated.unitNumberingMode,
+            customUnitNumbers: updated.customUnitNumbers,
+          }
+        : prev
+    );
+    setProductEditOpen(false);
+    toast.success("Product settings saved");
+  }, [product, productEditForm]);
+
+  const handleSaveBrandingSettings = useCallback(async () => {
+    if (!product) {
+      toast.error("Project details are still loading");
+      return;
+    }
+
+    setSavingBrandingSettings(true);
+    const { branding: savedBranding, error: brandingError } = await saveBrandingSettings({
+      companyName: settingsBranding.companyName?.trim() || null,
+      logoUrl: settingsBranding.logoUrl,
+      primaryColor: settingsBranding.primaryColor,
+      isFirstTime: false,
+      marketingConsent: settingsBranding.marketingConsent,
+    });
+    const normalizedProjectStyle = normalizeProjectDocumentStyle(projectStyleDraft);
+    const { project: updatedProject, error: projectError } = await updateProject(product.projectId, {
+      coverStyle: normalizedProjectStyle.coverStyle,
+      dividerStyle: normalizedProjectStyle.dividerStyle,
+      fontFamily: normalizedProjectStyle.fontFamily,
+    });
+    setSavingBrandingSettings(false);
+
+    if (brandingError || !savedBranding || projectError || !updatedProject) {
+      toast.error("Failed to save settings", {
+        description: brandingError ?? projectError ?? undefined,
+      });
+      return;
+    }
+
+    setBranding(savedBranding);
+    setSettingsBranding(savedBranding);
+    setProjectStyle(normalizedProjectStyle);
+    setProjectStyleDraft(normalizedProjectStyle);
+    setProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            coverStyle: updatedProject.coverStyle,
+            dividerStyle: updatedProject.dividerStyle,
+            fontFamily: updatedProject.fontFamily,
+          }
+        : prev
+    );
+    setBrandingSettingsOpen(false);
+    toast.success("Settings saved");
+  }, [product, projectStyleDraft, settingsBranding]);
+
+  const openSettingsDialog = useCallback(() => {
+    setSettingsBranding(branding);
+    setProjectStyleDraft(projectStyle);
+    setBrandingSettingsOpen(true);
+  }, [branding, projectStyle]);
+
+  const handleBuilderBrandingLogoUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSettingsBranding((prev) => ({ ...prev, logoUrl: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleExportPdf = useCallback(() => {
     if (state.sections.length === 0) {
       toast.error("Add at least one section before exporting");
       return;
     }
-    setGenerating(true);
-    try {
-      await generatePdf(state);
-      toast.success("PDF generated successfully!", {
-        description: `${chapterCount} chapters with bookmarks`,
-      });
-    } catch {
-      toast.error("Failed to generate PDF");
-    } finally {
-      setGenerating(false);
+    setExportFormat("pdf");
+    setSelectedUnitNumbers(unitNumbers);
+    setExportDialogOpen(true);
+  }, [state.sections.length, unitNumbers]);
+
+  const handleConfirmExport = useCallback(async () => {
+    const hasMultipleUnits = unitNumbers.length > 1;
+
+    if (hasMultipleUnits && selectedUnitNumbers.length === 0) {
+      toast.error("Select at least one unit");
+      return;
     }
-  }, [state]);
+
+    const isPdfMode = exportFormat === "pdf";
+    if (isPdfMode) {
+      setGenerating(true);
+    } else {
+      setGeneratingZip(true);
+    }
+
+    const docBase = product?.mdbDocumentNumber || state.info.documentNumber || "MDB";
+
+    try {
+      if (isPdfMode) {
+        if (!hasMultipleUnits) {
+          // No units or single unit
+          const unitNumber = unitNumbers[0];
+          if (unitNumber) {
+            const baseName = sanitizeExportFileName(`${docBase}_${unitNumber}`);
+            await generatePdf(buildExportState(unitNumber), { filename: `${baseName}.pdf` });
+          } else {
+            await generatePdf(buildExportState());
+          }
+          toast.success("PDF exported successfully!", {
+            description: `${chapterCount} chapters with bookmarks`,
+          });
+        } else if (selectedUnitNumbers.length === 1) {
+          const onlyUnit = selectedUnitNumbers[0];
+          const baseName = sanitizeExportFileName(`${docBase}_${onlyUnit}`);
+          await generatePdf(buildExportState(onlyUnit), { filename: `${baseName}.pdf` });
+          toast.success("PDF exported successfully!", {
+            description: `${chapterCount} chapters with bookmarks`,
+          });
+        } else {
+          const zip = new JSZip();
+          const usedNames = new Set<string>();
+          for (const unitNumber of selectedUnitNumbers) {
+            const blob = await generatePdfBlob(buildExportState(unitNumber));
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            let fileBaseName = sanitizeExportFileName(`${docBase}_${unitNumber}`);
+            if (usedNames.has(fileBaseName)) {
+              let suffix = 2;
+              while (usedNames.has(`${fileBaseName}_${suffix}`)) suffix += 1;
+              fileBaseName = `${fileBaseName}_${suffix}`;
+            }
+            usedNames.add(fileBaseName);
+            zip.file(`${fileBaseName}.pdf`, bytes);
+          }
+          const zipBlob = await zip.generateAsync({ type: "blob" });
+          downloadFileBlob(zipBlob, `${sanitizeExportFileName(`${docBase}_Units_PDF`)}.zip`);
+          toast.success("Export completed", {
+            description: `Exported ${selectedUnitNumbers.length} unit PDFs in ZIP`,
+          });
+        }
+      } else {
+        // Separate PDFs mode
+        if (!hasMultipleUnits) {
+          await generatePdfZip(buildExportState(unitNumbers[0]));
+          toast.success("Export completed", {
+            description: "Each chapter exported as a separate PDF",
+          });
+        } else {
+          const zip = new JSZip();
+          const usedFolderNames = new Set<string>();
+          for (const unitNumber of selectedUnitNumbers) {
+            let folderName = sanitizeExportFileName(unitNumber);
+            if (usedFolderNames.has(folderName)) {
+              let suffix = 2;
+              while (usedFolderNames.has(`${folderName}_${suffix}`)) suffix += 1;
+              folderName = `${folderName}_${suffix}`;
+            }
+            usedFolderNames.add(folderName);
+            const unitEntries = await generatePdfZipEntries(buildExportState(unitNumber));
+            const folder = zip.folder(folderName);
+            unitEntries.forEach((entry) => { folder?.file(entry.filename, entry.bytes); });
+          }
+          const zipBlob = await zip.generateAsync({ type: "blob" });
+          downloadFileBlob(zipBlob, `${sanitizeExportFileName(`${docBase}_Units`)}.zip`);
+          toast.success("Export completed", {
+            description:
+              selectedUnitNumbers.length === 1
+                ? "Exported 1 unit folder in ZIP"
+                : `Exported ${selectedUnitNumbers.length} unit folders in ZIP`,
+          });
+        }
+      }
+      setExportDialogOpen(false);
+    } catch {
+      toast.error(isPdfMode ? "Failed to export PDF" : "Failed to export");
+    } finally {
+      if (isPdfMode) {
+        setGenerating(false);
+      } else {
+        setGeneratingZip(false);
+      }
+    }
+  }, [
+    unitNumbers,
+    selectedUnitNumbers,
+    exportFormat,
+    buildExportState,
+    product?.mdbDocumentNumber,
+    state.info.documentNumber,
+    chapterCount,
+  ]);
+
+  const allUnitsSelected = unitNumbers.length > 0 && selectedUnitNumbers.length === unitNumbers.length;
+
+  const toggleAllUnitsSelection = useCallback(() => {
+    if (allUnitsSelected) {
+      setSelectedUnitNumbers([]);
+    } else {
+      setSelectedUnitNumbers(unitNumbers);
+    }
+  }, [allUnitsSelected, unitNumbers]);
+
+  const toggleUnitSelection = useCallback((unitNumber: string) => {
+    setSelectedUnitNumbers((prev) =>
+      prev.includes(unitNumber)
+        ? prev.filter((value) => value !== unitNumber)
+        : [...prev, unitNumber]
+    );
+  }, []);
 
   // Load product data on mount and pre-fill MDB state
   useEffect(() => {
-    if (!productId) return;
-    setLoadingProduct(true);
-    getProduct(productId).then(({ product: p, error }) => {
-      if (error || !p) {
-        toast.error("Failed to load product", { description: error ?? undefined });
-        navigate("/projects");
+    let cancelled = false;
+
+    async function loadProduct() {
+      if (authLoading) {
         return;
       }
-      setProduct(p);
-      if (p.mdbData) {
-        loadState(p.mdbData as Parameters<typeof loadState>[0]);
-      } else {
-        // Pre-fill info from product metadata for a new MDB
-        setInfo({
-          projectName: p.productName,
-          clientName: p.projectCustomerName,
-          documentNumber: p.mdbDocumentNumber,
-        });
+
+      if (!user) {
+        if (!cancelled) setLoadingProduct(false);
+        return;
       }
-      setLoadingProduct(false);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
+
+      if (!productId) {
+        if (!cancelled) setLoadingProduct(false);
+        return;
+      }
+
+      setLoadingProduct(true);
+      baselineStateRef.current = null;
+      resetProject();
+
+      try {
+        const { product: p, error } = await getProduct(productId);
+
+        if (cancelled) return;
+
+        if (error || !p) {
+          toast.error("Failed to load product", { description: error ?? undefined });
+          navigate("/projects");
+          return;
+        }
+
+        setProduct(p);
+        const normalizedProjectStyle = normalizeProjectDocumentStyle({
+          coverStyle: p.coverStyle,
+          dividerStyle: p.dividerStyle,
+          fontFamily: p.fontFamily,
+        });
+        setProjectStyle(normalizedProjectStyle);
+        setProjectStyleDraft(normalizedProjectStyle);
+
+        const savedState = p.mdbData;
+        const hasValidSavedShape =
+          !!savedState &&
+          typeof savedState === "object" &&
+          !Array.isArray(savedState) &&
+          Array.isArray((savedState as { sections?: unknown }).sections) &&
+          Array.isArray((savedState as { chapterOrder?: unknown }).chapterOrder) &&
+          typeof (savedState as { info?: unknown }).info === "object";
+
+        if (hasValidSavedShape) {
+          loadState(savedState as Parameters<typeof loadState>[0]);
+        } else {
+          // Pre-fill info from product metadata for a new MDB
+          setInfo({
+            projectName: p.projectName,
+            clientName: p.projectCustomerName,
+            documentNumber: p.mdbDocumentNumber || "",
+          });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        toast.error("Failed to load product", { description: String(error) });
+        navigate("/projects");
+      } finally {
+        if (!cancelled) setLoadingProduct(false);
+      }
+    }
+
+    void loadProduct();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, authLoading, user, loadState, navigate, resetProject, setInfo]);
+
+  useEffect(() => {
+    if (authLoading || loadingProduct) return;
+    if (baselineStateRef.current === null) {
+      baselineStateRef.current = currentStateSnapshot;
+    }
+  }, [authLoading, loadingProduct, currentStateSnapshot]);
 
   const handleSaveMdb = useCallback(async () => {
-    if (!productId) return;
+    if (!productId) return false;
     setSaving(true);
     const { error } = await saveMdbData(productId, state);
     setSaving(false);
     if (error) {
       toast.error("Save failed", { description: error });
+      return false;
     } else {
+      baselineStateRef.current = JSON.stringify(state);
       toast.success("MDB saved");
+      return true;
     }
   }, [productId, state]);
 
-  const categories = state.chapterOrder;
+  const handleSaveAndExit = useCallback(async () => {
+    setSavingBeforeExit(true);
+    const saved = await handleSaveMdb();
+    setSavingBeforeExit(false);
+    if (!saved) return;
+    await executePendingExit();
+  }, [handleSaveMdb, executePendingExit]);
+
+  const handleDiscardAndExit = useCallback(() => {
+    void executePendingExit();
+  }, [executePendingExit]);
+
+  const handleCancelExit = useCallback(() => {
+    pendingExitActionRef.current = null;
+    setUnsavedDialogOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/");
+    }
+  }, [authLoading, user, navigate]);
+
+  if (authLoading) return null;
+  if (!user) return null;
+
+  if (loadingProduct) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background text-muted-foreground gap-3">
+        <span className="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        Loading MDB…
+      </div>
+    );
+  }
+
+  const projectName = product?.projectName || state.info.projectName || "-";
+  const clientName = product?.projectCustomerName || state.info.clientName || "-";
+  const productName = product?.productName || "-";
+  const tagNumber = product?.tagNumber || "-";
+  const documentNumber = product?.mdbDocumentNumber || state.info.documentNumber || "-";
+
+  const categories = libraryCategories;
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top Bar */}
-      <header className="h-14 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 shrink-0 z-40">
-        <div className="flex items-center gap-3">
+      <header className="relative h-16 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between px-4 shrink-0 z-40">
+        <div className="flex items-center gap-3 z-10">
           <Button
             variant="ghost"
             size="sm"
             className="gap-1.5 text-muted-foreground"
-            onClick={() => navigate("/projects")}
+            onClick={() => requestExit(() => navigate("/projects"))}
           >
             <ChevronLeft className="h-4 w-4" />
-            <img src={LOGO_PNG} alt="BizzBit" className="h-5" />
+            <BizzBitLogo textSizeClassName="text-2xl" className="h-8" />
           </Button>
           <div className="h-5 w-px bg-border" />
-          <div>
-            <span className="text-sm font-[var(--font-mono)] text-muted-foreground">
-              MDB Builder
-            </span>
-            {product && (
-              <span className="ml-2 text-xs text-muted-foreground/60 font-[var(--font-mono)]">
-                — {product.tagNumber}
-              </span>
-            )}
+          <div className="text-sm font-[var(--font-mono)] text-muted-foreground">
+            MDB Builder
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSettingsOpen(true)}
-            className="gap-1.5 bg-transparent"
-          >
-            <Palette className="h-3.5 w-3.5" />
+
+        <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2 text-[11px] text-muted-foreground/80 font-[var(--font-mono)] max-w-[56vw] min-w-0">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border/60 bg-muted/30 truncate min-w-0">
+            <span className="text-muted-foreground/60">Project</span>
+            <span className="truncate text-xs font-semibold text-foreground">{projectName}</span>
+            <span className="text-muted-foreground/50">|</span>
+            <span className="truncate">{clientName}</span>
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border/60 bg-muted/30 truncate min-w-0">
+            <span className="text-muted-foreground/60">Product</span>
+            <span className="truncate text-xs font-semibold text-foreground">{productName}</span>
+            <span className="text-muted-foreground/50">|</span>
+            <span>{tagNumber}</span>
+            <span className="text-muted-foreground/50">|</span>
+            <span>{documentNumber}</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 z-10">
+          <Button variant="outline" size="sm" className="gap-1.5 bg-transparent" onClick={openSettingsDialog}>
+            <Settings className="h-3.5 w-3.5" />
             Settings
           </Button>
+          <ThemeToggle />
           <Button
             variant="outline"
             size="sm"
-            onClick={handleSaveMdb}
+            onClick={() => {
+              void handleSaveMdb();
+            }}
             disabled={saving || loadingProduct}
             className="gap-1.5 bg-transparent"
           >
@@ -465,11 +1479,11 @@ export default function Builder() {
           <Button
             size="sm"
             onClick={handleExportPdf}
-            disabled={generating || state.sections.length === 0}
+            disabled={generating || generatingZip || state.sections.length === 0}
             className="gap-1.5"
           >
             <FileDown className="h-3.5 w-3.5" />
-            {generating ? "Generating..." : "Export PDF"}
+            {generating || generatingZip ? "Exporting..." : "Export PDF"}
           </Button>
           <div className="h-5 w-px bg-border ml-1" />
           <Tooltip>
@@ -477,10 +1491,12 @@ export default function Builder() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  logout();
-                  navigate("/");
-                }}
+                onClick={() =>
+                  requestExit(async () => {
+                    await logout();
+                    navigate("/");
+                  })
+                }
               >
                 <LogOut className="h-4 w-4" />
               </Button>
@@ -490,22 +1506,52 @@ export default function Builder() {
         </div>
       </header>
 
+      {/* Upgrade Banner */}
+      <div className="w-full bg-primary/10 border-b border-primary/20 px-4 py-3 flex items-center justify-center gap-4 text-sm z-30">
+        <div className="flex items-center gap-3">
+          <Lock className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="text-foreground/80">
+            <span className="font-medium text-foreground">BizzBit Builder is free.</span>{" "}
+            The full BizzBit platform adds MDB content management, digital ITP, ISO 9001 NCR tracking, and more.
+          </span>
+        </div>
+        <a
+          href="https://www.bizzbit.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 text-primary hover:underline font-medium whitespace-nowrap flex items-center gap-1"
+        >
+          Learn more <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar — Section Library */}
         {sidebarOpen && (
-          <aside className="w-72 border-r border-border/50 bg-card/30 flex flex-col shrink-0">
+          <aside className="w-80 border-r border-border/50 bg-card/30 flex flex-col shrink-0">
             <div className="p-3 border-b border-border/50 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold">Section Library</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs bg-transparent"
-                  onClick={() => setTemplateDialogOpen(true)}
-                >
-                  <LayoutTemplate className="h-3 w-3" />
-                  Templates
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs bg-transparent"
+                    onClick={openCreateCategoryDialog}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Category
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs bg-transparent"
+                    onClick={() => setTemplateDialogOpen(true)}
+                  >
+                    <LayoutTemplate className="h-3 w-3" />
+                    Templates
+                  </Button>
+                </div>
               </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -529,38 +1575,75 @@ export default function Builder() {
                   All
                 </button>
                 {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                      activeCategory === cat
+                  <div key={cat.id} className="flex items-center gap-1">
+                    <button
+                      onClick={() => setActiveCategory(cat.key)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                      activeCategory === cat.key
                         ? "text-white"
                         : "bg-muted text-muted-foreground hover:bg-accent"
                     }`}
                     style={
-                      activeCategory === cat
-                        ? { backgroundColor: getChapterColor(cat) }
+                      activeCategory === cat.key
+                        ? { backgroundColor: cat.color }
                         : undefined
                     }
                   >
-                    {getChapterTitle(cat)}
-                  </button>
+                      {cat.name}
+                    </button>
+                    <button
+                      onClick={() => openEditCategoryDialog(cat)}
+                      className="p-1 text-muted-foreground/40 hover:text-muted-foreground"
+                      title="Edit category"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </div>
                 ))}
+              </div>
+
+              <div className="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs bg-transparent"
+                  onClick={openCreateSectionDialog}
+                  disabled={libraryCategories.length === 0}
+                >
+                  <Plus className="h-3 w-3" />
+                  Section
+                </Button>
               </div>
             </div>
             <ScrollArea className="flex-1 min-h-0">
               <div className="p-2 space-y-1">
-                {filteredSections.map((section) => (
+                {libraryLoading && (
+                  <p className="text-sm text-muted-foreground text-center py-8">Loading section library...</p>
+                )}
+                {!libraryLoading && filteredSections.map((section) => (
                   <SectionCard
                     key={section.id}
                     section={section}
+                    onEdit={() => openEditSectionDialog(section)}
                     onAdd={() => {
-                      addSection(section);
+                      ensureChapterForLibraryCategory(
+                        section.categoryKey,
+                        section.categoryName,
+                        section.categoryColor
+                      );
+                      addSection({
+                        id: section.key,
+                        title: section.title,
+                        code: section.code,
+                        category: section.categoryKey,
+                        description: section.description,
+                        suggestedSections: section.suggestedSections || undefined,
+                      });
                       toast.success(`Added: ${section.title}`);
                     }}
                   />
                 ))}
-                {filteredSections.length === 0 && (
+                {!libraryLoading && filteredSections.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-8">
                     {selectedIds.size > 0
                       ? "All matching sections are already added"
@@ -576,70 +1659,6 @@ export default function Builder() {
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-auto">
             <div className="max-w-3xl mx-auto p-6">
-              {/* Project Info */}
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4">Your MDB Structure</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                      Project Name
-                    </Label>
-                    <Input
-                      placeholder="e.g. Shell Moerdijk — V-4501"
-                      value={state.info.projectName}
-                      onChange={(e) => setInfo({ projectName: e.target.value })}
-                      className="bg-input/50"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                      Client Name
-                    </Label>
-                    <Input
-                      placeholder="e.g. Shell Nederland"
-                      value={state.info.clientName}
-                      onChange={(e) => setInfo({ clientName: e.target.value })}
-                      className="bg-input/50"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                      Document Number
-                    </Label>
-                    <Input
-                      value={state.info.documentNumber}
-                      onChange={(e) =>
-                        setInfo({ documentNumber: e.target.value })
-                      }
-                      className="bg-input/50 font-[var(--font-mono)] text-sm"
-                    />
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <Label className="text-xs text-muted-foreground mb-1 block">
-                        Revision
-                      </Label>
-                      <Input
-                        value={state.info.revision}
-                        onChange={(e) => setInfo({ revision: e.target.value })}
-                        className="bg-input/50 font-[var(--font-mono)] text-sm"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <Label className="text-xs text-muted-foreground mb-1 block">
-                        Date
-                      </Label>
-                      <Input
-                        type="date"
-                        value={state.info.date}
-                        onChange={(e) => setInfo({ date: e.target.value })}
-                        className="bg-input/50 font-[var(--font-mono)] text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Chapters & Subchapters */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -659,23 +1678,65 @@ export default function Builder() {
                       <Plus className="h-3 w-3" />
                       Add Main Chapter
                     </Button>
-                  {!sidebarOpen && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs bg-transparent"
-                      onClick={() => setSidebarOpen(true)}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Add Sections
-                    </Button>
-                  )}
+                    {!sidebarOpen && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs bg-transparent"
+                        onClick={() => setSidebarOpen(true)}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Sections
+                      </Button>
+                    )}
                   </div>
                 </div>
 
                 {state.sections.length === 0 ? (
                   <div className="border border-dashed border-border rounded-xl p-12 text-center">
                     <LayoutTemplate className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                {/* Locked Premium Features */}
+                <div className="p-4 border-b border-border/50">
+                  <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                    <Lock className="h-3.5 w-3.5 text-primary" />
+                    Full Platform Features
+                  </h3>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        title: "MDB Content Management",
+                        desc: "Fill your MDB with actual project content — certificates, test records, and traceability data.",
+                      },
+                      {
+                        title: "MDB Index Generator (ITP)",
+                        desc: "Auto-build your MDB index from a connected digital Inspection & Test Plan.",
+                      },
+                    ].map((feature) => (
+                      <div
+                        key={feature.title}
+                        className="rounded-lg border border-border/50 bg-muted/10 p-2.5 opacity-60"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Lock className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                          <div>
+                            <div className="text-xs font-medium text-foreground">{feature.title}</div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{feature.desc}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <a
+                      href="https://www.bizzbit.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 w-full mt-1 text-xs text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Learn about the full platform
+                    </a>
+                  </div>
+                </div>
+
                     <p className="text-muted-foreground mb-4">
                       No sections added yet. Start with a template or add
                       sections from the library.
@@ -689,15 +1750,6 @@ export default function Builder() {
                       >
                         <LayoutTemplate className="h-3.5 w-3.5" />
                         Choose Template
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSidebarOpen(true)}
-                        className="gap-1.5 bg-transparent"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Browse Sections
                       </Button>
                     </div>
                   </div>
@@ -738,7 +1790,12 @@ export default function Builder() {
                       const isChapterDragMode = draggingChapter !== null;
 
                       return (
-                        <div key={category} className="space-y-1.5">
+                        <motion.div
+                          key={category}
+                          layout
+                          transition={{ type: "spring", stiffness: 500, damping: 38, mass: 0.7 }}
+                          className="space-y-0.5"
+                        >
                           <div
                             className="h-2 rounded bg-transparent"
                             onMouseEnter={() => {
@@ -796,7 +1853,7 @@ export default function Builder() {
                                 setDraggingChapter(null);
                                 setDragChapterPreviewTarget(null);
                               }}
-                              className="flex items-center gap-2 px-3 py-2 border-b border-border/50"
+                              className="flex items-center gap-2 px-2.5 py-1.5 border-b border-border/50"
                             >
                               <div
                                 draggable
@@ -849,41 +1906,43 @@ export default function Builder() {
                                 size="sm"
                                 className="h-7 px-2 text-xs"
                                 onClick={() => {
-                                  addCustomSubchapter(category);
-                                  toast.success(`Added subchapter to ${getChapterTitle(category)}`);
+                                  openCreateSubchapterDialog(category);
                                 }}
                               >
                                 <Plus className="h-3 w-3 mr-1" />
                                 Add Subchapter
                               </Button>
-                              {category !== "general" && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                                  onClick={() => {
-                                    removeChapter(category);
-                                    toast.success(`Removed chapter: ${getChapterTitle(category)}`);
-                                  }}
-                                >
-                                  <Trash2 className="h-3 w-3 mr-1" />
-                                  Remove
-                                </Button>
-                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                                onClick={() => {
+                                  removeChapter(category);
+                                  toast.success(`Removed chapter: ${getChapterTitle(category)}`);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Remove
+                              </Button>
                             </div>
 
                             {!isChapterDragMode && (
-                              <div className="p-2 space-y-1.5">
+                              <div className="p-1 space-y-0.5">
                                 {chapterSections.length === 0 ? (
                                   <div className="text-xs text-muted-foreground px-2 py-3 border border-dashed border-border rounded-md">
                                     Drop subchapters here
                                   </div>
                                 ) : (
                                   chapterSections.map((section, subIndex) => (
-                                    <div key={section.id} className="space-y-1.5">
+                                    <motion.div
+                                      key={section.id}
+                                      layout="position"
+                                      transition={{ type: "spring", stiffness: 520, damping: 36, mass: 0.65 }}
+                                      className="space-y-0.5"
+                                    >
                                       <div
-                                        className="h-2 rounded bg-transparent"
+                                        className="h-0.5 rounded bg-transparent"
                                         onDragOver={(e) => {
                                           if (!draggingSectionId) return;
                                           e.preventDefault();
@@ -921,7 +1980,7 @@ export default function Builder() {
                                           setDraggingSectionId(null);
                                           setDragPreviewTarget(null);
                                         }}
-                                        className="flex items-center gap-2 p-3 rounded-lg border border-border/50 bg-card/50 hover:border-border group"
+                                        className="flex items-center gap-2 p-2 rounded-lg border border-border/50 bg-card/50 hover:border-border group"
                                       >
                                         <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0" />
                                         <div className="flex-1 min-w-0">
@@ -932,13 +1991,16 @@ export default function Builder() {
                                             <span className="font-[var(--font-mono)] text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                                               {section.code}
                                             </span>
-                                            <Input
-                                              value={section.title}
-                                              onChange={(e) => updateSectionTitle(section.id, e.target.value)}
-                                              className="h-7 px-2 py-0 text-sm bg-input/40 border-border/40"
-                                            />
+                                            <span className="text-sm truncate">{section.title}</span>
                                           </div>
                                         </div>
+                                        <button
+                                          onClick={() => openEditSubchapterDialog(section)}
+                                          className="p-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                                          title="Edit subchapter details"
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </button>
                                         <Tooltip>
                                           <TooltipTrigger asChild>
                                             <button className="p-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors">
@@ -956,12 +2018,12 @@ export default function Builder() {
                                           <X className="h-3.5 w-3.5" />
                                         </button>
                                       </div>
-                                    </div>
+                                    </motion.div>
                                   ))
                                 )}
 
                                 <div
-                                  className="h-2 rounded bg-transparent"
+                                  className="h-0.5 rounded bg-transparent"
                                   onDragOver={(e) => {
                                     if (!draggingSectionId) return;
                                     e.preventDefault();
@@ -980,7 +2042,7 @@ export default function Builder() {
                               </div>
                             )}
                           </div>
-                        </div>
+                        </motion.div>
                       );
                     })}
 
@@ -1014,6 +2076,33 @@ export default function Builder() {
 
         {/* Right Panel — Preview & Score */}
         <aside className="w-80 border-l border-border/50 bg-card/30 flex flex-col shrink-0 hidden xl:flex overflow-y-auto">
+          {/* Product Info */}
+          <div className="p-4 border-b border-border/50">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold">Product</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs bg-transparent h-7 px-2"
+                onClick={openProductEditDialog}
+                disabled={!product}
+              >
+                <Settings className="h-3 w-3" />
+                Edit
+              </Button>
+            </div>
+            <div className="space-y-0.5 text-xs text-muted-foreground">
+              <div className="font-medium text-foreground truncate">{product?.productName || "-"}</div>
+              <div className="font-[var(--font-mono)]">{product?.tagNumber || "-"}</div>
+              <div className="font-[var(--font-mono)] truncate">{product?.mdbDocumentNumber || "-"}</div>
+              {product?.unitsEnabled && (
+                <div>
+                  {product.unitCount} unit{product.unitCount !== 1 ? "s" : ""}
+                  {product.unitNumberingMode === "custom" ? " (custom)" : " (auto)"}
+                </div>
+              )}
+            </div>
+          </div>
           <div className="p-4 border-b border-border/50">
             <h3 className="text-sm font-semibold mb-3">Completeness Score</h3>
             <div className="flex items-center gap-3 mb-2">
@@ -1060,67 +2149,6 @@ export default function Builder() {
             </div>
           )}
 
-          {/* Logo & Branding */}
-          <div className="p-4 border-b border-border/50">
-            <h3 className="text-sm font-semibold mb-3">Branding</h3>
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  Company Logo
-                </Label>
-                {state.logoUrl ? (
-                  <div className="relative group">
-                    <img
-                      src={state.logoUrl}
-                      alt="Logo"
-                      className="h-12 object-contain bg-white rounded p-1"
-                    />
-                    <button
-                      onClick={() => setLogoUrl(null)}
-                      className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-16 border border-dashed border-border rounded-lg flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Upload Logo
-                  </button>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleLogoUpload}
-                />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">
-                  Primary Color
-                </Label>
-                <div className="flex gap-1.5 flex-wrap">
-                  {COLOR_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setPrimaryColor(color)}
-                      className={`h-7 w-7 rounded-md border-2 transition-all ${
-                        state.primaryColor === color
-                          ? "border-foreground scale-110"
-                          : "border-transparent hover:scale-105"
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Mini Preview */}
           <div className="p-4 flex-1">
             <h3 className="text-sm font-semibold mb-3">Document Preview</h3>
@@ -1130,12 +2158,15 @@ export default function Builder() {
                 className="h-1.5 rounded-sm mb-2"
                 style={{ backgroundColor: state.primaryColor }}
               />
-              {state.logoUrl && (
+              {branding.logoUrl && (
                 <img
-                  src={state.logoUrl}
+                  src={branding.logoUrl}
                   alt=""
                   className="h-4 object-contain mb-1"
                 />
+              )}
+              {branding.companyName && (
+                <div className="text-[7px] font-semibold mb-1 truncate">{branding.companyName}</div>
               )}
               <div className="font-bold text-[9px] mb-0.5">
                 {state.info.projectName || "Project Name"}
@@ -1204,7 +2235,7 @@ export default function Builder() {
             {SECTOR_TEMPLATES.map((t) => (
               <button
                 key={t.id}
-                onClick={() => handleApplyTemplate(t.id)}
+                onClick={() => handleTemplateSelect(t.id)}
                 className="flex items-start gap-4 p-4 rounded-xl border border-border/50 bg-card/50 hover:border-primary/30 hover:bg-accent/30 transition-all text-left group"
               >
                 <span className="text-2xl">{t.icon}</span>
@@ -1225,58 +2256,594 @@ export default function Builder() {
         </DialogContent>
       </Dialog>
 
-      {/* Settings Dialog */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+      <Dialog open={templateWarningOpen} onOpenChange={setTemplateWarningOpen}>
         <DialogContent className="sm:max-w-md bg-card border-border">
           <DialogHeader>
-            <DialogTitle>Project Settings</DialogTitle>
+            <DialogTitle>Replace current chapters?</DialogTitle>
             <DialogDescription>
-              Configure your MDB document settings.
+              Applying a template replaces your current chapters and subchapters. Some existing content may be lost.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelTemplateApply}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmTemplateApply}>
+              Apply Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>{editingCategory ? "Edit Category" : "Add Category"}</DialogTitle>
+            <DialogDescription>
+              {editingCategory
+                ? "Update this category for your personal section library."
+                : "Create a new category for your personal section library."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
             <div>
-              <Label className="text-sm mb-1.5 block">Project Name</Label>
+              <Label className="text-sm mb-1.5 block">Category Name</Label>
               <Input
-                value={state.info.projectName}
-                onChange={(e) => setInfo({ projectName: e.target.value })}
-                placeholder="Enter project name"
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
+                placeholder="e.g. Procurement"
                 className="bg-input/50"
               />
             </div>
             <div>
-              <Label className="text-sm mb-1.5 block">Document Number</Label>
-              <Input
-                value={state.info.documentNumber}
-                onChange={(e) => setInfo({ documentNumber: e.target.value })}
-                className="bg-input/50 font-[var(--font-mono)]"
+              <Label className="text-sm mb-1.5 block">Category Color</Label>
+              <input
+                type="color"
+                value={categoryColor}
+                onChange={(e) => setCategoryColor(e.target.value)}
+                className="h-10 w-full p-1 bg-transparent border border-border/50 rounded"
               />
             </div>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <Label className="text-sm mb-1.5 block">Revision</Label>
-                <Input
-                  value={state.info.revision}
-                  onChange={(e) => setInfo({ revision: e.target.value })}
-                  className="bg-input/50 font-[var(--font-mono)]"
-                />
-              </div>
-              <div className="flex-1">
-                <Label className="text-sm mb-1.5 block">Date</Label>
-                <Input
-                  type="date"
-                  value={state.info.date}
-                  onChange={(e) => setInfo({ date: e.target.value })}
-                  className="bg-input/50 font-[var(--font-mono)]"
-                />
-              </div>
-            </div>
-            <Button onClick={() => setSettingsOpen(false)} className="w-full">
-              Done
+            <Button onClick={saveCategory} className="w-full" disabled={savingLibrary}>
+              {savingLibrary ? "Saving..." : "Save Category"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={unsavedDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCancelExit();
+            return;
+          }
+          setUnsavedDialogOpen(true);
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved MDB changes. Do you want to save before leaving this page?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-end gap-2 mt-4">
+            <Button variant="ghost" onClick={handleCancelExit}>
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={handleDiscardAndExit}>
+              Leave without saving
+            </Button>
+            <Button onClick={handleSaveAndExit} disabled={savingBeforeExit || saving}>
+              {savingBeforeExit || saving ? "Saving..." : "Save and leave"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Export PDF</DialogTitle>
+            <DialogDescription>
+              Choose how to export your MDB document.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {/* Format selection */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setExportFormat("pdf")}
+                className={`flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-colors ${
+                  exportFormat === "pdf"
+                    ? "border-primary bg-primary/5"
+                    : "border-border/60 hover:border-primary/40 hover:bg-accent/30"
+                }`}
+              >
+                <span className="text-sm font-medium flex items-center gap-1.5">
+                  <FileDown className="h-4 w-4" /> Single PDF
+                </span>
+                <span className="text-xs text-muted-foreground">One file with bookmarks</span>
+              </button>
+              <button
+                onClick={() => setExportFormat("zip")}
+                className={`flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-colors ${
+                  exportFormat === "zip"
+                    ? "border-primary bg-primary/5"
+                    : "border-border/60 hover:border-primary/40 hover:bg-accent/30"
+                }`}
+              >
+                <span className="text-sm font-medium flex items-center gap-1.5">
+                  <Archive className="h-4 w-4" /> Separate PDFs
+                </span>
+                <span className="text-xs text-muted-foreground">One PDF per chapter</span>
+              </button>
+            </div>
+
+            {/* Unit selection — only shown for multi-unit products */}
+            {unitNumbers.length > 1 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Units</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {selectedUnitNumbers.length} of {unitNumbers.length} selected
+                    </span>
+                    <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={toggleAllUnitsSelection}>
+                      {allUnitsSelected ? "Unselect all" : "Select all"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="max-h-60 overflow-auto rounded-md border border-border/60 p-2 space-y-1">
+                  {unitNumbers.map((unitNumber) => (
+                    <label
+                      key={unitNumber}
+                      className="flex items-center gap-3 rounded px-2 py-1.5 hover:bg-accent/40 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUnitNumbers.includes(unitNumber)}
+                        onChange={() => toggleUnitSelection(unitNumber)}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      <span className="text-sm font-[var(--font-mono)]">{unitNumber}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmExport}
+              disabled={
+                (generating || generatingZip) ||
+                (unitNumbers.length > 1 && selectedUnitNumbers.length === 0)
+              }
+            >
+              {generating || generatingZip ? "Exporting..." : "Export"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sectionDialogOpen} onOpenChange={setSectionDialogOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>{editingSection ? "Edit Section" : "Add Section"}</DialogTitle>
+            <DialogDescription>
+              {editingSection
+                ? "Update this section in your personal section library."
+                : "Create a reusable section in your personal section library."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div>
+              <Label className="text-sm mb-1.5 block">Category</Label>
+              <select
+                value={sectionCategoryId}
+                onChange={(e) => setSectionCategoryId(e.target.value)}
+                className="w-full h-10 rounded-md border border-input bg-input/50 px-3 text-sm"
+              >
+                {libraryCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm mb-1.5 block">Section Title</Label>
+                <Input
+                  value={sectionTitle}
+                  onChange={(e) => setSectionTitle(e.target.value)}
+                  placeholder="e.g. Procurement Plan"
+                  className="bg-input/50"
+                />
+              </div>
+              <div>
+                <Label className="text-sm mb-1.5 block">Code</Label>
+                <Input
+                  value={sectionCode}
+                  onChange={(e) => setSectionCode(e.target.value)}
+                  placeholder="e.g. PRC"
+                  className="bg-input/50 font-[var(--font-mono)]"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm mb-1.5 block">Description</Label>
+              <Input
+                value={sectionDescription}
+                onChange={(e) => setSectionDescription(e.target.value)}
+                placeholder="Describe what this section contains"
+                className="bg-input/50"
+              />
+            </div>
+            <Button onClick={saveSection} className="w-full" disabled={savingLibrary}>
+              {savingLibrary ? "Saving..." : "Save Section"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={brandingSettingsOpen} onOpenChange={setBrandingSettingsOpen}>
+        <DialogContent className="flex max-h-[88vh] flex-col overflow-hidden sm:max-w-6xl bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+            <DialogDescription>
+              Manage your account branding and this project's document style studio in one place.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.9fr]">
+            <div className="space-y-6 pr-1">
+              <section className="space-y-4 rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Account Branding</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    These settings apply to all MDB exports on your account.
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm mb-1.5 block">Company Name</Label>
+                  <Input
+                    value={settingsBranding.companyName ?? ""}
+                    onChange={(e) =>
+                      setSettingsBranding((prev) => ({ ...prev, companyName: e.target.value || null }))
+                    }
+                    placeholder="e.g. BizzBit Engineering"
+                    className="bg-input/50"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm mb-1.5 block">Company Logo</Label>
+                  {settingsBranding.logoUrl ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/80 p-3">
+                      <img src={settingsBranding.logoUrl} alt="Company logo" className="h-12 max-w-32 rounded bg-white p-1 object-contain" />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSettingsBranding((prev) => ({ ...prev, logoUrl: null }))}
+                      >
+                        Remove Logo
+                      </Button>
+                    </div>
+                  ) : (
+                    <label
+                      className={`flex h-20 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed transition-colors text-sm ${
+                        builderBrandingLogoDragActive
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-background/40 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                      }`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setBuilderBrandingLogoDragActive(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setBuilderBrandingLogoDragActive(false);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setBuilderBrandingLogoDragActive(false);
+                        const files = e.dataTransfer.files;
+                        if (files.length > 0) {
+                          const file = files[0];
+                          if (file.type.startsWith("image/")) {
+                            const syntheticEvent = {
+                              target: { files: files },
+                            } as unknown as React.ChangeEvent<HTMLInputElement>;
+                            handleBuilderBrandingLogoUpload(syntheticEvent);
+                          } else {
+                            toast.error("Please drop an image file");
+                          }
+                        }
+                      }}
+                    >
+                      <input type="file" accept="image/*" className="hidden" onChange={handleBuilderBrandingLogoUpload} />
+                      {builderBrandingLogoDragActive ? "Drop logo here" : "Upload Logo"}
+                    </label>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-sm mb-1.5 block">Primary Brand Color</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {COLOR_PRESETS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setSettingsBranding((prev) => ({ ...prev, primaryColor: color }))}
+                        className={`h-8 w-8 rounded-md border-2 transition-transform ${
+                          settingsBranding.primaryColor === color ? "border-foreground scale-110" : "border-transparent"
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-border/50">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settingsBranding.marketingConsent ?? false}
+                      onChange={(e) =>
+                        setSettingsBranding((prev) => ({ ...prev, marketingConsent: e.target.checked }))
+                      }
+                      className="h-4 w-4 rounded border-input mt-1 flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-foreground font-medium">Marketing Communications</div>
+                      <div className="mt-0.5 text-sm text-muted-foreground">
+                        I'd like to receive occasional updates about the BizzBit platform and new features. You can unsubscribe at any time.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </section>
+
+              <section className="space-y-5 rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Project Style Studio</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    This project's exports can use their own cover, divider, and typography settings.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm block">Cover Style</Label>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {COVER_STYLE_OPTIONS.map((option) => (
+                      <StyleOptionCard
+                        key={option.value}
+                        selected={projectStyleDraft.coverStyle === option.value}
+                        label={option.label}
+                        description={option.description}
+                        onClick={() => setProjectStyleDraft((prev) => ({ ...prev, coverStyle: option.value }))}
+                      >
+                        <CoverStylePreview
+                          style={option.value}
+                          color={settingsBranding.primaryColor}
+                          fontFamily={projectStyleDraft.fontFamily}
+                          companyName={settingsBranding.companyName?.trim() || "Your Company"}
+                        />
+                      </StyleOptionCard>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm block">Divider Style</Label>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {DIVIDER_STYLE_OPTIONS.map((option) => (
+                      <StyleOptionCard
+                        key={option.value}
+                        selected={projectStyleDraft.dividerStyle === option.value}
+                        label={option.label}
+                        description={option.description}
+                        onClick={() => setProjectStyleDraft((prev) => ({ ...prev, dividerStyle: option.value }))}
+                      >
+                        <DividerStylePreview
+                          style={option.value}
+                          color={settingsBranding.primaryColor}
+                          fontFamily={projectStyleDraft.fontFamily}
+                        />
+                      </StyleOptionCard>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm block">Document Font</Label>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {FONT_FAMILY_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setProjectStyleDraft((prev) => ({ ...prev, fontFamily: option.value }))}
+                        className={`rounded-xl border p-3 text-left transition-all ${
+                          projectStyleDraft.fontFamily === option.value
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border/70 bg-background hover:border-primary/40"
+                        }`}
+                        style={{ fontFamily: option.previewFamily }}
+                      >
+                        <div className="text-sm font-semibold text-foreground">{option.label}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Manufacturing Data Book preview text
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <aside className="space-y-4">
+              <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-muted/20 p-4">
+                <div className="mb-4">
+                  <div className="text-sm font-semibold text-foreground">Live Preview</div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Current selections for project {product?.projectNumber || "-"}.
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      Cover Page
+                    </div>
+                    <div className="overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
+                      <CoverStylePreview
+                        style={projectStyleDraft.coverStyle}
+                        color={settingsBranding.primaryColor}
+                        fontFamily={projectStyleDraft.fontFamily}
+                        companyName={settingsBranding.companyName?.trim() || product?.projectCustomerName || "Your Company"}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      Divider Page
+                    </div>
+                    <div className="overflow-hidden rounded-2xl border border-border/70 bg-background shadow-sm">
+                      <DividerStylePreview
+                        style={projectStyleDraft.dividerStyle}
+                        color={settingsBranding.primaryColor}
+                        fontFamily={projectStyleDraft.fontFamily}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-border/70 bg-background/80 p-4 text-sm text-muted-foreground">
+                    <div className="font-medium text-foreground">Preview metadata</div>
+                    <div className="mt-3 space-y-2">
+                      <div>Project: {product?.projectName || state.info.projectName || "Project Name"}</div>
+                      <div>Client: {product?.projectCustomerName || state.info.clientName || "Client Name"}</div>
+                      <div>Product: {product?.productName || "Equipment"}</div>
+                      <div>Font: {FONT_FAMILY_OPTIONS.find((option) => option.value === projectStyleDraft.fontFamily)?.label}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBrandingSettingsOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveBrandingSettings} disabled={savingBrandingSettings}>
+              {savingBrandingSettings ? "Saving..." : "Save Settings"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Product Settings Dialog */}
+      <Dialog open={productEditOpen} onOpenChange={setProductEditOpen}>
+        <DialogContent
+          className={`${
+            productEditForm.unitsEnabled && productEditForm.unitNumberingMode === "custom"
+              ? "sm:max-w-4xl"
+              : "sm:max-w-md"
+          } bg-card border-border`}
+        >
+          <DialogHeader>
+            <DialogTitle>Product Settings</DialogTitle>
+            <DialogDescription>
+              Update this product's details. Changes will be reflected in future exports.
+            </DialogDescription>
+          </DialogHeader>
+          <ProductFormFields form={productEditForm} onChange={setProductEditForm} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProductEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveProductEdit} disabled={savingProductEdit}>
+              {savingProductEdit ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={productEditValidationOpen} onOpenChange={setProductEditValidationOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Custom unit numbers are incomplete</DialogTitle>
+            <DialogDescription>
+              There {productEditValidationMissing === 1 ? "is" : "are"} {productEditValidationMissing} empty custom unit
+              {productEditValidationMissing === 1 ? "" : "s"}. Fill all unit numbers before saving, or change unit settings
+              back to Auto / disable multiple units.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setProductEditValidationOpen(false)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sectionEditDialogOpen} onOpenChange={setSectionEditDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>
+              {sectionEditMode === "create" ? "Add Subchapter" : "Edit Subchapter"}
+            </DialogTitle>
+            <DialogDescription>
+              Changes here apply only to this product's MDB.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div>
+              <Label className="text-sm mb-1.5 block">Title</Label>
+              <Input
+                value={sectionDraft.title}
+                onChange={(e) => setSectionDraft((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="e.g. Welding Data Sheet"
+                className="bg-input/50"
+              />
+            </div>
+            <div>
+              <Label className="text-sm mb-1.5 block">Code</Label>
+              <Input
+                value={sectionDraft.code}
+                onChange={(e) => setSectionDraft((prev) => ({ ...prev, code: e.target.value }))}
+                placeholder="e.g. WDS"
+                className="bg-input/50 font-[var(--font-mono)]"
+              />
+            </div>
+            <div>
+              <Label className="text-sm mb-1.5 block">Description</Label>
+              <Textarea
+                value={sectionDraft.description}
+                onChange={(e) => setSectionDraft((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe what this subchapter contains"
+                className="bg-input/50 min-h-28 resize-y"
+              />
+            </div>
+            <DialogFooter className="pt-1">
+              <Button variant="outline" onClick={() => setSectionEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveSubchapterDialog}>
+                {sectionEditMode === "create" ? "Add Subchapter" : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
@@ -1284,41 +2851,50 @@ export default function Builder() {
 /* Section Card in the library sidebar */
 function SectionCard({
   section,
+  onEdit,
   onAdd,
 }: {
-  section: MdbSection;
+  section: LibrarySection;
+  onEdit: () => void;
   onAdd: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent/30 transition-colors group">
+    <div className="flex items-center gap-1.5 p-2 rounded-lg hover:bg-accent/30 transition-colors overflow-hidden">
       <div
-        className="w-1 h-6 rounded-full shrink-0"
-        style={{ backgroundColor: CATEGORY_COLORS[section.category] }}
+        className="w-1 h-5 rounded-full shrink-0"
+        style={{ backgroundColor: section.categoryColor }}
       />
+      <button
+        onClick={onAdd}
+        className="h-5 w-5 inline-flex items-center justify-center rounded border border-border text-primary hover:bg-primary/10 transition-colors shrink-0"
+        title="Add section to MDB"
+      >
+        <Plus className="h-3 w-3" />
+      </button>
+      <button
+        onClick={onEdit}
+        className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent transition-colors shrink-0"
+        title="Edit section"
+      >
+        <Pencil className="h-3 w-3" />
+      </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="font-[var(--font-mono)] text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground">
             {section.code}
           </span>
-          <span className="text-xs font-medium truncate">{section.title}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-xs font-medium truncate cursor-help">
+                {section.title}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="max-w-xs text-xs">
+              {section.description}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button className="p-1 text-muted-foreground/30 hover:text-muted-foreground transition-colors opacity-0 group-hover:opacity-100">
-            <Info className="h-3 w-3" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="max-w-xs text-xs">
-          {section.description}
-        </TooltipContent>
-      </Tooltip>
-      <button
-        onClick={onAdd}
-        className="p-1 text-muted-foreground/30 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
     </div>
   );
 }

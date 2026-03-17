@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
+import type { ProjectDocumentStyle } from "./document-styles";
 
-export interface Project {
+export interface Project extends ProjectDocumentStyle {
   id: string;
   projectNumber: string;
   projectName: string;
@@ -41,6 +42,9 @@ export async function createProject(data: {
   projectName: string;
   customerName: string;
   customerProjectNumber?: string;
+  coverStyle?: ProjectDocumentStyle["coverStyle"];
+  dividerStyle?: ProjectDocumentStyle["dividerStyle"];
+  fontFamily?: ProjectDocumentStyle["fontFamily"];
 }): Promise<{ project: Project | null; error: string | null }> {
   try {
     const res = await fetch("/api/projects", {
@@ -63,6 +67,9 @@ export async function updateProject(
     projectName: string;
     customerName: string;
     customerProjectNumber: string | null;
+    coverStyle: ProjectDocumentStyle["coverStyle"];
+    dividerStyle: ProjectDocumentStyle["dividerStyle"];
+    fontFamily: ProjectDocumentStyle["fontFamily"];
   }>
 ): Promise<{ project: Project | null; error: string | null }> {
   try {

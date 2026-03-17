@@ -15,23 +15,38 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         projectName: true,
         customerName: true,
         customerProjectNumber: true,
+        coverStyle: true,
+        dividerStyle: true,
+        fontFamily: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { products: true } },
       },
     });
     res.json({ projects });
-  } catch {
+  } catch (error) {
+    console.error("Failed to list projects", error);
     res.status(500).json({ error: "Failed to list projects" });
   }
 });
 
 router.post("/", async (req: AuthenticatedRequest, res) => {
-  const { projectNumber, projectName, customerName, customerProjectNumber } = req.body as {
+  const {
+    projectNumber,
+    projectName,
+    customerName,
+    customerProjectNumber,
+    coverStyle,
+    dividerStyle,
+    fontFamily,
+  } = req.body as {
     projectNumber: string;
     projectName: string;
     customerName: string;
     customerProjectNumber?: string;
+    coverStyle?: string;
+    dividerStyle?: string;
+    fontFamily?: string;
   };
 
   if (!projectNumber || !projectName || !customerName) {
@@ -47,6 +62,9 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
         projectName,
         customerName,
         customerProjectNumber: customerProjectNumber || null,
+        ...(coverStyle !== undefined && { coverStyle }),
+        ...(dividerStyle !== undefined && { dividerStyle }),
+        ...(fontFamily !== undefined && { fontFamily }),
       },
       select: {
         id: true,
@@ -54,23 +72,38 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
         projectName: true,
         customerName: true,
         customerProjectNumber: true,
+        coverStyle: true,
+        dividerStyle: true,
+        fontFamily: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { products: true } },
       },
     });
     res.json({ project });
-  } catch {
+  } catch (error) {
+    console.error("Failed to create project", error);
     res.status(500).json({ error: "Failed to create project" });
   }
 });
 
 router.patch("/:id", async (req: AuthenticatedRequest, res) => {
-  const { projectNumber, projectName, customerName, customerProjectNumber } = req.body as {
+  const {
+    projectNumber,
+    projectName,
+    customerName,
+    customerProjectNumber,
+    coverStyle,
+    dividerStyle,
+    fontFamily,
+  } = req.body as {
     projectNumber?: string;
     projectName?: string;
     customerName?: string;
     customerProjectNumber?: string | null;
+    coverStyle?: string;
+    dividerStyle?: string;
+    fontFamily?: string;
   };
 
   try {
@@ -87,6 +120,9 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
         ...(projectName !== undefined && { projectName }),
         ...(customerName !== undefined && { customerName }),
         ...(customerProjectNumber !== undefined && { customerProjectNumber }),
+        ...(coverStyle !== undefined && { coverStyle }),
+        ...(dividerStyle !== undefined && { dividerStyle }),
+        ...(fontFamily !== undefined && { fontFamily }),
       },
       select: {
         id: true,
@@ -94,13 +130,17 @@ router.patch("/:id", async (req: AuthenticatedRequest, res) => {
         projectName: true,
         customerName: true,
         customerProjectNumber: true,
+        coverStyle: true,
+        dividerStyle: true,
+        fontFamily: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { products: true } },
       },
     });
     res.json({ project: updated });
-  } catch {
+  } catch (error) {
+    console.error("Failed to update project", error);
     res.status(500).json({ error: "Failed to update project" });
   }
 });
@@ -114,7 +154,8 @@ router.delete("/:id", async (req: AuthenticatedRequest, res) => {
     }
     await prisma.project.delete({ where: { id: req.params.id } });
     res.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Failed to delete project", error);
     res.status(500).json({ error: "Failed to delete project" });
   }
 });

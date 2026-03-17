@@ -14,16 +14,39 @@ import {
   Zap,
   CheckCircle,
   ArrowRight,
+  Lock,
+  ExternalLink,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import LoginDialog from "@/components/LoginDialog";
+import BizzBitLogo from "@/components/BizzBitLogo";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/mdb-preview-mockup-bu2sriEjQDjc3bPUT3wTMk.webp";
 const FEATURE_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/feature-sections-Em7wVMXftxJxiqWD28x568.webp";
-const LOGO_PNG = "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/BizzBit%20Logo%20large_88d9f1c2.png";
+
+const FREE_FEATURES = [
+  "MDB structure builder",
+  "Drag & drop section editor",
+  "Industry templates (Pressure Vessels, Offshore, Piping…)",
+  "PDF export with bookmarks",
+  "Custom branding (logo & color)",
+  "Completeness checker",
+];
+
+const PREMIUM_ONLY_FEATURES = [
+  "MDB content management",
+  "MDB index generator using digital ITP",
+  "Digital ITP creation & management",
+  "Automated MDB building from ITP",
+  "Supplier & customer document communication",
+  "Specifications, codes & standards library",
+  "ISO 9001 Non-Conformity (NCR) tracking",
+  "Checklists & punchlists",
+];
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -106,12 +129,13 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={LOGO_PNG} alt="BizzBit" className="h-7" />
+            <BizzBitLogo textSizeClassName="text-3xl" className="h-9" />
             <span className="text-muted-foreground text-sm font-[var(--font-mono)] tracking-wide">
               MDB Builder
             </span>
           </div>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             {isAuthenticated ? (
               <>
                 <Button asChild>
@@ -121,7 +145,7 @@ export default function Landing() {
               </>
             ) : (
               <Button onClick={() => setLoginOpen(true)}>
-                Sign in with Microsoft <ArrowRight className="ml-2 h-4 w-4" />
+                Sign in <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>
@@ -193,13 +217,7 @@ export default function Landing() {
                     onClick={() => setLoginOpen(true)}
                     className="text-base px-8"
                   >
-                    <svg className="mr-2 h-5 w-5" viewBox="0 0 21 21" fill="none">
-                      <rect width="10" height="10" fill="#F25022" />
-                      <rect x="11" width="10" height="10" fill="#7FBA00" />
-                      <rect y="11" width="10" height="10" fill="#00A4EF" />
-                      <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
-                    </svg>
-                    Sign in with Microsoft
+                    Sign in to continue
                   </Button>
                 )}
                 <Button
@@ -285,11 +303,81 @@ export default function Landing() {
                   <f.icon className="h-5 w-5 text-primary" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">{f.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  {f.desc}
-                </p>
+                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
               </motion.div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Comparison Section */}
+      <section className="py-20 lg:py-28 relative">
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+            variants={fadeUp}
+            custom={0}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Free tool — or the complete platform?</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              MDB Builder gets you started for free. The full BizzBit platform solves the complete digital ITP,
+              supplier communication, and ISO 9001 compliance workflow.
+            </p>
+          </motion.div>
+
+          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/50">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/20">
+                  <th className="text-left px-4 py-3 font-semibold">Feature</th>
+                  <th className="text-center px-4 py-3 font-semibold">BizzBit Builder (Free)</th>
+                  <th className="text-center px-4 py-3 font-semibold">BizzBit (Full Platform)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {FREE_FEATURES.map((feature) => (
+                  <tr key={feature} className="border-b border-border/40 last:border-b-0">
+                    <td className="px-4 py-2.5">{feature}</td>
+                    <td className="px-4 py-2.5 text-center text-green-500 font-semibold">Included</td>
+                    <td className="px-4 py-2.5 text-center text-green-500 font-semibold">Included</td>
+                  </tr>
+                ))}
+                {PREMIUM_ONLY_FEATURES.map((feature) => (
+                  <tr key={feature} className="border-b border-border/40 last:border-b-0">
+                    <td className="px-4 py-2.5">{feature}</td>
+                    <td className="px-4 py-2.5 text-center text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Lock className="h-3.5 w-3.5" /> Locked
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-green-500 font-semibold">Included</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+            {isAuthenticated ? (
+              <Button variant="outline" asChild className="bg-transparent">
+                <a href="/projects">
+                  Continue with Builder <ArrowRight className="ml-2 h-4 w-4" />
+                </a>
+              </Button>
+            ) : (
+              <Button variant="outline" className="bg-transparent" onClick={() => setLoginOpen(true)}>
+                Get Started Free
+              </Button>
+            )}
+            <Button asChild className="gap-2">
+              <a href="https://www.bizzbit.com" target="_blank" rel="noopener noreferrer">
+                Learn more at bizzbit.com
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
           </div>
         </div>
       </section>
@@ -412,7 +500,7 @@ export default function Landing() {
       <footer className="border-t border-border/50 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src={LOGO_PNG} alt="BizzBit" className="h-6" />
+            <BizzBitLogo textSizeClassName="text-2xl" className="h-8" />
             <span className="text-muted-foreground text-sm">
               MDB Builder — A free tool by BizzBit
             </span>

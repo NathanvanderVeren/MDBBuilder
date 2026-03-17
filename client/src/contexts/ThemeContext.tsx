@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
+const STORAGE_KEY = "theme";
+
+function getSystemTheme(): Theme {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 
 interface ThemeContextType {
   theme: Theme;
@@ -22,9 +27,12 @@ export function ThemeProvider({
   switchable = false,
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return defaultTheme;
+
     if (switchable) {
-      const stored = localStorage.getItem("theme");
-      return (stored as Theme) || defaultTheme;
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === "light" || stored === "dark") return stored;
+      return getSystemTheme();
     }
     return defaultTheme;
   });
@@ -38,13 +46,31 @@ export function ThemeProvider({
     }
 
     if (switchable) {
-      localStorage.setItem("theme", theme);
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === "light" || stored === "dark") {
+        localStorage.setItem(STORAGE_KEY, theme);
+      }
     }
   }, [theme, switchable]);
 
+  useEffect(() => {
+    if (!switchable) return;
+
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return;
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => setTheme(media.matches ? "dark" : "light");
+
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [switchable]);
+
   const toggleTheme = switchable
     ? () => {
-        setTheme(prev => (prev === "light" ? "dark" : "light"));
+        const nextTheme = theme === "light" ? "dark" : "light";
+        localStorage.setItem(STORAGE_KEY, nextTheme);
+        setTheme(nextTheme);
       }
     : undefined;
 

@@ -13,6 +13,9 @@ model Project {
   projectName           String    @map("project_name")
   customerName          String    @map("customer_name")
   customerProjectNumber String?   @map("customer_project_number")
+  coverStyle            String    @default("classic") @map("cover_style")
+  dividerStyle          String    @default("ribbon") @map("divider_style")
+  fontFamily            String    @default("helvetica") @map("font_family")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   products              Product[]
@@ -24,14 +27,62 @@ model Product {
   id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   projectId             String   @map("project_id") @db.Uuid
   productName           String   @map("product_name")
-  tagNumber             String   @map("tag_number")
-  mdbDocumentNumber     String   @map("mdb_document_number")
-  supplierName          String?  @map("supplier_name")
-  supplierProjectNumber String?  @map("supplier_project_number")
+  tagNumber             String?  @map("tag_number")
+  mdbDocumentNumber     String?  @map("mdb_document_number")
+  unitsEnabled          Boolean  @default(false) @map("units_enabled")
+  unitCount             Int      @default(1) @map("unit_count")
+  unitNumberingMode     String   @default("auto") @map("unit_numbering_mode")
+  customUnitNumbers     Json?    @map("custom_unit_numbers")
   mdbData               Json?    @map("mdb_data")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("products")
+}
+
+model UserBrandingSettings {
+  userId           String   @id @map("user_id") @db.Uuid
+  companyName      String?  @map("company_name")
+  logoUrl          String?  @map("logo_url")
+  primaryColor     String   @default("#3B82F6") @map("primary_color")
+  marketingConsent Boolean  @default(false) @map("marketing_consent")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("user_branding_settings")
+}
+
+model LibraryCategory {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  key       String           @map("key")
+  name      String           @map("name")
+  color     String           @map("color")
+  sortOrder Int              @default(0) @map("sort_order")
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sections  LibrarySection[]
+
+  @@unique([userId, key])
+  @@index([userId, sortOrder])
+  @@map("library_categories")
+}
+
+model LibrarySection {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  key               String          @map("key")
+  categoryId        String          @map("category_id") @db.Uuid
+  title             String          @map("title")
+  code              String          @map("code")
+  description       String          @map("description")
+  suggestedSections Json?           @map("suggested_sections")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category          LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, categoryId])
+  @@map("library_sections")
 }

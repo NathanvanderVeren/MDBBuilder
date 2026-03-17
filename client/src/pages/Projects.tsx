@@ -4,7 +4,7 @@
  * Clicking a product opens the MDB Builder.
  */
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,11 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
+  getBrandingSettings,
+  saveBrandingSettings,
+  type BrandingSettings,
+} from "@/lib/branding";
+import {
   listProjects,
   createProject,
   updateProject,
@@ -34,6 +39,13 @@ import {
   type Product,
 } from "@/lib/products";
 import {
+  ProductFormFields,
+  type ProductForm,
+  emptyProductForm,
+  alignCustomUnitNumbers,
+  countEmptyCustomUnitNumbers,
+} from "@/components/ProductFormFields";
+import {
   Plus,
   Trash2,
   Pencil,
@@ -44,10 +56,26 @@ import {
   ArrowRight,
   X,
   Layers,
+  LayoutGrid,
+  Rows3,
+  ArrowUpDown,
+  Settings,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
+import BizzBitLogo from "@/components/BizzBitLogo";
 
-const LOGO_PNG =
-  "https://d2xsxph8kpxj0f.cloudfront.net/109618846/j2CceLNvy3BzdkKcwBZVT6/BizzBit%20Logo%20large_88d9f1c2.png";
+const BRAND_COLOR_PRESETS = [
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#06B6D4",
+  "#EC4899",
+  "#F97316",
+];
 
 // ─── Form state helpers ──────────────────────────────────────────────────────
 
@@ -58,27 +86,11 @@ interface ProjectForm {
   customerProjectNumber: string;
 }
 
-interface ProductForm {
-  productName: string;
-  tagNumber: string;
-  mdbDocumentNumber: string;
-  supplierName: string;
-  supplierProjectNumber: string;
-}
-
 const emptyProjectForm = (): ProjectForm => ({
   projectNumber: "",
   projectName: "",
   customerName: "",
   customerProjectNumber: "",
-});
-
-const emptyProductForm = (): ProductForm => ({
-  productName: "",
-  tagNumber: "",
-  mdbDocumentNumber: "",
-  supplierName: "",
-  supplierProjectNumber: "",
 });
 
 // ─── Main component ──────────────────────────────────────────────────────────
@@ -102,6 +114,10 @@ export default function Projects() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [projectView, setProjectView] = useState<"card" | "list">("card");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"updatedAt" | "projectNumber" | "projectName" | "customerName" | "products">("projectNumber");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // ── Product dialogs
   const [createProductOpen, setCreateProductOpen] = useState(false);
@@ -109,19 +125,81 @@ export default function Projects() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm());
   const [savingProduct, setSavingProduct] = useState(false);
+  const [customUnitsValidationOpen, setCustomUnitsValidationOpen] = useState(false);
+  const [customUnitsValidationMissing, setCustomUnitsValidationMissing] = useState(0);
+  const [brandingOpen, setBrandingOpen] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [brandingForm, setBrandingForm] = useState<BrandingSettings>({
+    companyName: user?.company || null,
+    logoUrl: null,
+    primaryColor: "#3B82F6",
+  });
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [brandingLogoDragActive, setBrandingLogoDragActive] = useState(false);
+  const [welcomeLogoDragActive, setWelcomeLogoDragActive] = useState(false);
 
   // ── Load projects on mount (must be before auth guard early returns)
   useEffect(() => {
     if (!authLoading && user) {
       loadProjectsList();
+      void loadBranding();
     }
   }, [authLoading, user]);
 
-  // Auth guard
-  if (authLoading) return null;
-  if (!user) {
-    navigate("/");
-    return null;
+  async function loadBranding() {
+    const { branding, error } = await getBrandingSettings();
+    if (error) {
+      toast.error("Failed to load branding settings", { description: error });
+      return;
+    }
+
+    setBrandingForm({
+      companyName: branding.companyName ?? user?.company ?? null,
+      logoUrl: branding.logoUrl,
+      primaryColor: branding.primaryColor,
+      isFirstTime: branding.isFirstTime,
+      marketingConsent: branding.marketingConsent,
+    });
+
+    if (branding.isFirstTime) {
+      setWelcomeOpen(true);
+    }
+  }
+
+  async function handleSaveWelcomeBranding() {
+    setSavingBranding(true);
+    const { branding, error } = await saveBrandingSettings({
+      companyName: brandingForm.companyName?.trim() || null,
+      logoUrl: brandingForm.logoUrl,
+      primaryColor: brandingForm.primaryColor,
+      isFirstTime: false,
+      marketingConsent: brandingForm.marketingConsent ?? false,
+    });
+    setSavingBranding(false);
+
+    if (error || !branding) {
+      toast.error("Failed to save branding settings", { description: error ?? undefined });
+      return;
+    }
+
+    setBrandingForm(branding);
+    setWelcomeOpen(false);
+    toast.success("Welcome setup saved");
+  }
+
+  async function handleSkipWelcome() {
+    // Persist a settings row so the welcome appears only once.
+    const { branding } = await saveBrandingSettings({
+      companyName: brandingForm.companyName?.trim() || null,
+      logoUrl: brandingForm.logoUrl,
+      primaryColor: brandingForm.primaryColor,
+      isFirstTime: false,
+      marketingConsent: false,
+    });
+    if (branding) {
+      setBrandingForm(branding);
+    }
+    setWelcomeOpen(false);
   }
 
   async function loadProjectsList() {
@@ -130,6 +208,50 @@ export default function Projects() {
     if (error) toast.error("Failed to load projects", { description: error });
     else setProjects(p);
     setLoadingProjects(false);
+  }
+
+  const visibleProjects = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    const filtered = q
+      ? projects.filter((project) => {
+          return (
+            project.projectNumber.toLowerCase().includes(q) ||
+            project.projectName.toLowerCase().includes(q) ||
+            project.customerName.toLowerCase().includes(q) ||
+            (project.customerProjectNumber || "").toLowerCase().includes(q)
+          );
+        })
+      : projects;
+
+    const sorted = [...filtered].sort((a, b) => {
+      const direction = sortDirection === "asc" ? 1 : -1;
+
+      if (sortBy === "products") {
+        return ((a._count?.products ?? 0) - (b._count?.products ?? 0)) * direction;
+      }
+
+      if (sortBy === "updatedAt") {
+        return (
+          (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * direction
+        );
+      }
+
+      const aValue = (a[sortBy] || "").toString().toLowerCase();
+      const bValue = (b[sortBy] || "").toString().toLowerCase();
+      if (aValue < bValue) return -1 * direction;
+      if (aValue > bValue) return 1 * direction;
+      return 0;
+    });
+
+    return sorted;
+  }, [projects, searchQuery, sortBy, sortDirection]);
+
+  // Auth guard
+  if (authLoading) return null;
+  if (!user) {
+    navigate("/");
+    return null;
   }
 
   // ── Open products modal
@@ -227,30 +349,62 @@ export default function Projects() {
 
   function openEditProduct(product: Product) {
     setEditingProduct(product);
+    const resolvedUnitCount = product.unitsEnabled ? Math.max(1, product.unitCount) : 1;
+    const resolvedCustomNumbers =
+      product.unitsEnabled && product.unitNumberingMode === "custom"
+        ? alignCustomUnitNumbers(product.customUnitNumbers ?? [], resolvedUnitCount)
+        : [];
+
     setProductForm({
       productName: product.productName,
-      tagNumber: product.tagNumber,
-      mdbDocumentNumber: product.mdbDocumentNumber,
-      supplierName: product.supplierName ?? "",
-      supplierProjectNumber: product.supplierProjectNumber ?? "",
+      tagNumber: product.tagNumber ?? "",
+      mdbDocumentNumber: product.mdbDocumentNumber ?? "",
+      unitsEnabled: product.unitsEnabled,
+      unitCount: resolvedUnitCount,
+      unitNumberingMode: product.unitsEnabled ? product.unitNumberingMode : "auto",
+      customUnitNumbers: resolvedCustomNumbers,
     });
     setEditProductOpen(true);
   }
 
   async function handleCreateProduct() {
     if (!selectedProject) return;
-    if (!productForm.productName.trim() || !productForm.tagNumber.trim() || !productForm.mdbDocumentNumber.trim()) {
-      toast.error("Product name, tag number, and MDB document number are required");
+    if (!productForm.productName.trim()) {
+      toast.error("Product name is required");
       return;
     }
+
+    const unitCount = Math.max(1, Math.min(500, Number(productForm.unitCount) || 1));
+    const customUnitNumbers = productForm.customUnitNumbers
+      .slice(0, unitCount)
+      .map((value) => value.trim());
+    const emptyCustomUnitCount = countEmptyCustomUnitNumbers(productForm);
+
+    if (productForm.unitsEnabled && productForm.unitNumberingMode === "custom") {
+      if (emptyCustomUnitCount > 0) {
+        setCustomUnitsValidationMissing(emptyCustomUnitCount);
+        setCustomUnitsValidationOpen(true);
+        return;
+      }
+      if (new Set(customUnitNumbers).size !== customUnitNumbers.length) {
+        toast.error("Unit numbers must be unique");
+        return;
+      }
+    }
+
     setSavingProduct(true);
     const { product, error } = await createProduct({
       projectId: selectedProject.id,
       productName: productForm.productName.trim(),
-      tagNumber: productForm.tagNumber.trim(),
-      mdbDocumentNumber: productForm.mdbDocumentNumber.trim(),
-      supplierName: productForm.supplierName.trim() || undefined,
-      supplierProjectNumber: productForm.supplierProjectNumber.trim() || undefined,
+      tagNumber: productForm.tagNumber.trim() || null,
+      mdbDocumentNumber: productForm.mdbDocumentNumber.trim() || null,
+      unitsEnabled: productForm.unitsEnabled,
+      unitCount: productForm.unitsEnabled ? unitCount : 1,
+      unitNumberingMode: productForm.unitsEnabled ? productForm.unitNumberingMode : "auto",
+      customUnitNumbers:
+        productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
+          ? customUnitNumbers
+          : null,
     });
     setSavingProduct(false);
     if (error || !product) {
@@ -272,17 +426,41 @@ export default function Projects() {
 
   async function handleUpdateProduct() {
     if (!editingProduct) return;
-    if (!productForm.productName.trim() || !productForm.tagNumber.trim() || !productForm.mdbDocumentNumber.trim()) {
-      toast.error("Product name, tag number, and MDB document number are required");
+    if (!productForm.productName.trim()) {
+      toast.error("Product name is required");
       return;
     }
+
+    const unitCount = Math.max(1, Math.min(500, Number(productForm.unitCount) || 1));
+    const customUnitNumbers = productForm.customUnitNumbers
+      .slice(0, unitCount)
+      .map((value) => value.trim());
+    const emptyCustomUnitCount = countEmptyCustomUnitNumbers(productForm);
+
+    if (productForm.unitsEnabled && productForm.unitNumberingMode === "custom") {
+      if (emptyCustomUnitCount > 0) {
+        setCustomUnitsValidationMissing(emptyCustomUnitCount);
+        setCustomUnitsValidationOpen(true);
+        return;
+      }
+      if (new Set(customUnitNumbers).size !== customUnitNumbers.length) {
+        toast.error("Unit numbers must be unique");
+        return;
+      }
+    }
+
     setSavingProduct(true);
     const { product, error } = await updateProduct(editingProduct.id, {
       productName: productForm.productName.trim(),
-      tagNumber: productForm.tagNumber.trim(),
-      mdbDocumentNumber: productForm.mdbDocumentNumber.trim(),
-      supplierName: productForm.supplierName.trim() || null,
-      supplierProjectNumber: productForm.supplierProjectNumber.trim() || null,
+      tagNumber: productForm.tagNumber.trim() || null,
+      mdbDocumentNumber: productForm.mdbDocumentNumber.trim() || null,
+      unitsEnabled: productForm.unitsEnabled,
+      unitCount: productForm.unitsEnabled ? unitCount : 1,
+      unitNumberingMode: productForm.unitsEnabled ? productForm.unitNumberingMode : "auto",
+      customUnitNumbers:
+        productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
+          ? customUnitNumbers
+          : null,
     });
     setSavingProduct(false);
     if (error || !product) {
@@ -314,6 +492,37 @@ export default function Projects() {
     toast.success(`Product "${product.productName}" deleted`);
   }
 
+  async function handleSaveBranding() {
+    setSavingBranding(true);
+    const { branding, error } = await saveBrandingSettings({
+      companyName: brandingForm.companyName?.trim() || null,
+      logoUrl: brandingForm.logoUrl,
+      primaryColor: brandingForm.primaryColor,
+      marketingConsent: brandingForm.marketingConsent,
+    });
+    setSavingBranding(false);
+
+    if (error || !branding) {
+      toast.error("Failed to save branding settings", { description: error ?? undefined });
+      return;
+    }
+
+    setBrandingForm(branding);
+    setBrandingOpen(false);
+    toast.success("Branding settings saved");
+  }
+
+  function handleBrandingLogoUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBrandingForm((prev) => ({ ...prev, logoUrl: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  }
+
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -322,12 +531,17 @@ export default function Projects() {
       <nav className="border-b border-border/50 bg-card/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={LOGO_PNG} alt="BizzBit" className="h-6" />
+            <BizzBitLogo textSizeClassName="text-2xl" className="h-8" />
             <span className="text-muted-foreground text-sm font-[var(--font-mono)] tracking-wide">
               MDB Builder
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBrandingOpen(true)}>
+              <Settings className="h-4 w-4" />
+              Settings
+            </Button>
+            <ThemeToggle />
             <span className="text-sm text-muted-foreground hidden sm:block">{user.email}</span>
             <Button
               variant="ghost"
@@ -351,10 +565,67 @@ export default function Projects() {
               Select a project to manage its products and MDB documents.
             </p>
           </div>
-          <Button onClick={openCreateProject} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center rounded-lg border border-border/60 bg-card/60 p-1">
+              <Button
+                type="button"
+                variant={projectView === "card" ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5 h-8 px-3"
+                onClick={() => setProjectView("card")}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Cards
+              </Button>
+              <Button
+                type="button"
+                variant={projectView === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5 h-8 px-3"
+                onClick={() => setProjectView("list")}
+              >
+                <Rows3 className="h-3.5 w-3.5" />
+                List
+              </Button>
+            </div>
+            <Button onClick={openCreateProject} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center mb-6">
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by project no., name, customer, or customer project no."
+            className="sm:max-w-md bg-input/50"
+          />
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-2 py-1.5">
+              <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="h-7 rounded bg-transparent text-sm outline-none"
+              >
+                <option value="updatedAt">Last Updated</option>
+                <option value="projectNumber">Project Number</option>
+                <option value="projectName">Project Name</option>
+                <option value="customerName">Customer</option>
+                <option value="products">Products</option>
+              </select>
+              <select
+                value={sortDirection}
+                onChange={(e) => setSortDirection(e.target.value as typeof sortDirection)}
+                className="h-7 rounded bg-transparent text-sm outline-none"
+              >
+                <option value="asc">Asc</option>
+                <option value="desc">Desc</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {loadingProjects ? (
@@ -376,9 +647,14 @@ export default function Projects() {
               Create First Project
             </Button>
           </div>
-        ) : (
+        ) : visibleProjects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-sm font-medium mb-1">No matching projects</p>
+            <p className="text-xs text-muted-foreground">Try a different search term.</p>
+          </div>
+        ) : projectView === "card" ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((project) => (
+            {visibleProjects.map((project) => (
               <div
                 key={project.id}
                 className="group relative flex flex-col p-5 rounded-xl border border-border/50 bg-card/50 hover:border-primary/30 hover:bg-card transition-all duration-200 cursor-pointer"
@@ -444,6 +720,75 @@ export default function Projects() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border/50 bg-card/40 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 border-b border-border/50">
+                  <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Project</th>
+                    <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium">Customer Project #</th>
+                    <th className="px-4 py-3 font-medium">Products</th>
+                    <th className="px-4 py-3 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleProjects.map((project) => (
+                    <tr
+                      key={project.id}
+                      className="border-b border-border/40 hover:bg-accent/20 cursor-pointer"
+                      onClick={() => handleOpenProject(project)}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                            <FolderOpen className="h-4 w-4 text-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-[var(--font-mono)] text-xs text-muted-foreground">
+                              {project.projectNumber}
+                            </div>
+                            <div className="font-medium truncate max-w-[260px]">
+                              {project.projectName}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{project.customerName}</td>
+                      <td className="px-4 py-3 text-muted-foreground font-[var(--font-mono)]">
+                        {project.customerProjectNumber || "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="inline-flex items-center gap-1.5 text-muted-foreground">
+                          <Package className="h-3.5 w-3.5" />
+                          {project._count?.products ?? 0}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            onClick={() => openEditProject(project)}
+                            title="Edit project"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            onClick={() => handleDeleteProject(project)}
+                            title="Delete project"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -545,9 +890,13 @@ export default function Projects() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm">{product.productName}</div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                        <span className="font-[var(--font-mono)]">Tag: {product.tagNumber}</span>
-                        <span className="font-[var(--font-mono)]">Doc: {product.mdbDocumentNumber}</span>
-                        {product.supplierName && <span>{product.supplierName}</span>}
+                        <span className="font-[var(--font-mono)]">Tag: {product.tagNumber || "-"}</span>
+                        <span className="font-[var(--font-mono)]">Doc: {product.mdbDocumentNumber || "-"}</span>
+                        {product.unitsEnabled && (
+                          <span>
+                            Units: {product.unitCount} ({product.unitNumberingMode === "custom" ? "custom" : "auto"})
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -587,7 +936,13 @@ export default function Projects() {
 
       {/* ── Create Product Dialog ─────────────────────────────────────────── */}
       <Dialog open={createProductOpen} onOpenChange={setCreateProductOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+        <DialogContent
+          className={`${
+            productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
+              ? "sm:max-w-4xl"
+              : "sm:max-w-md"
+          } bg-card border-border`}
+        >
           <DialogHeader>
             <DialogTitle>Add Product</DialogTitle>
             <DialogDescription>
@@ -608,7 +963,13 @@ export default function Projects() {
 
       {/* ── Edit Product Dialog ───────────────────────────────────────────── */}
       <Dialog open={editProductOpen} onOpenChange={setEditProductOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
+        <DialogContent
+          className={`${
+            productForm.unitsEnabled && productForm.unitNumberingMode === "custom"
+              ? "sm:max-w-4xl"
+              : "sm:max-w-md"
+          } bg-card border-border`}
+        >
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
           </DialogHeader>
@@ -620,6 +981,276 @@ export default function Projects() {
             <Button onClick={handleUpdateProduct} disabled={savingProduct}>
               {savingProduct ? "Saving…" : "Save Changes"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={brandingOpen} onOpenChange={setBrandingOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Branding Settings</DialogTitle>
+            <DialogDescription>
+              These branding settings apply to all MDB exports for your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div>
+              <Label className="text-sm mb-1.5 block">Company Name</Label>
+              <Input
+                value={brandingForm.companyName ?? ""}
+                onChange={(e) => setBrandingForm((prev) => ({ ...prev, companyName: e.target.value || null }))}
+                placeholder="e.g. BizzBit Engineering"
+                className="bg-input/50"
+              />
+            </div>
+            <div>
+              <Label className="text-sm mb-1.5 block">Company Logo</Label>
+              {brandingForm.logoUrl ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <img src={brandingForm.logoUrl} alt="Company logo" className="h-12 max-w-32 object-contain bg-white rounded p-1" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBrandingForm((prev) => ({ ...prev, logoUrl: null }))}
+                  >
+                    Remove Logo
+                  </Button>
+                </div>
+              ) : (
+                <label
+                  className={`flex h-20 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed transition-colors text-sm ${
+                    brandingLogoDragActive
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-muted/10 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setBrandingLogoDragActive(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setBrandingLogoDragActive(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setBrandingLogoDragActive(false);
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                      const file = files[0];
+                      if (file.type.startsWith("image/")) {
+                        const syntheticEvent = {
+                          target: { files: files },
+                        } as unknown as React.ChangeEvent<HTMLInputElement>;
+                        handleBrandingLogoUpload(syntheticEvent);
+                      } else {
+                        toast.error("Please drop an image file");
+                      }
+                    }
+                  }}
+                >
+                  <input type="file" accept="image/*" className="hidden" onChange={handleBrandingLogoUpload} />
+                  {brandingLogoDragActive ? "Drop logo here" : "Upload Logo"}
+                </label>
+              )}
+            </div>
+            <div>
+              <Label className="text-sm mb-1.5 block">Primary Brand Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {BRAND_COLOR_PRESETS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setBrandingForm((prev) => ({ ...prev, primaryColor: color }))}
+                    className={`h-8 w-8 rounded-md border-2 ${
+                      brandingForm.primaryColor === color ? "border-foreground scale-110" : "border-transparent"
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="pt-2 border-t border-border/50">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={brandingForm.marketingConsent ?? false}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, marketingConsent: e.target.checked }))}
+                  className="h-4 w-4 rounded border-input mt-1 flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-foreground font-medium">Marketing Communications</div>
+                  <div className="mt-0.5 text-sm text-muted-foreground">
+                    I'd like to receive occasional updates about the BizzBit platform and new features. You can unsubscribe at any time.
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBrandingOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveBranding} disabled={savingBranding}>
+              {savingBranding ? "Saving..." : "Save Settings"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={welcomeOpen} onOpenChange={setWelcomeOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border">
+          <DialogHeader>
+            <div className="flex items-center gap-2 mb-2">
+              <BizzBitLogo textSizeClassName="text-2xl" className="h-8" />
+            </div>
+            <DialogTitle>Welcome to MDB Builder</DialogTitle>
+            <DialogDescription>
+              Great to have you here. Set up your branding now so all exports match your company identity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div>
+              <Label className="text-sm mb-1.5 block">Company Name</Label>
+              <Input
+                value={brandingForm.companyName ?? ""}
+                onChange={(e) => setBrandingForm((prev) => ({ ...prev, companyName: e.target.value || null }))}
+                placeholder="e.g. BizzBit Engineering"
+                className="bg-input/50"
+              />
+            </div>
+            <div>
+              <Label className="text-sm mb-1.5 block">Company Logo</Label>
+              {brandingForm.logoUrl ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <img src={brandingForm.logoUrl} alt="Company logo" className="h-12 max-w-32 object-contain bg-white rounded p-1" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBrandingForm((prev) => ({ ...prev, logoUrl: null }))}
+                  >
+                    Remove Logo
+                  </Button>
+                </div>
+              ) : (
+                <label
+                  className={`flex h-20 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed transition-colors text-sm ${
+                    welcomeLogoDragActive
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-muted/10 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setWelcomeLogoDragActive(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setWelcomeLogoDragActive(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setWelcomeLogoDragActive(false);
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                      const file = files[0];
+                      if (file.type.startsWith("image/")) {
+                        const syntheticEvent = {
+                          target: { files: files },
+                        } as unknown as React.ChangeEvent<HTMLInputElement>;
+                        handleBrandingLogoUpload(syntheticEvent);
+                      } else {
+                        toast.error("Please drop an image file");
+                      }
+                    }
+                  }}
+                >
+                  <input type="file" accept="image/*" className="hidden" onChange={handleBrandingLogoUpload} />
+                  {welcomeLogoDragActive ? "Drop logo here" : "Upload Logo"}
+                </label>
+              )}
+            </div>
+            <div>
+              <Label className="text-sm mb-1.5 block">Primary Brand Color</Label>
+              <div className="flex flex-wrap gap-2">
+                {BRAND_COLOR_PRESETS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setBrandingForm((prev) => ({ ...prev, primaryColor: color }))}
+                    className={`h-8 w-8 rounded-md border-2 ${
+                      brandingForm.primaryColor === color ? "border-foreground scale-110" : "border-transparent"
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              You can always change these branding settings later from the Settings button in the navbar.
+            </p>
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5">
+                <div className="flex items-start gap-2.5">
+                  <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium mb-0.5">This is the free BizzBit Builder</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      The full BizzBit platform adds MDB content management, digital ITP, supplier &amp; customer
+                      communication, ISO 9001 NCR tracking, checklists, and much more.{" "}
+                      <a
+                        href="https://www.bizzbit.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline inline-flex items-center gap-0.5"
+                      >
+                        Visit bizzbit.com <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={brandingForm.marketingConsent ?? false}
+                  onChange={(e) => setBrandingForm((prev) => ({ ...prev, marketingConsent: e.target.checked }))}
+                  className="mt-0.5 h-4 w-4 rounded border-input accent-primary shrink-0"
+                />
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  I'd like to receive occasional updates about the BizzBit platform and new features.
+                  You can unsubscribe at any time.
+                </span>
+              </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => void handleSkipWelcome()} disabled={savingBranding}>
+              Skip for now
+            </Button>
+            <Button onClick={handleSaveWelcomeBranding} disabled={savingBranding}>
+              {savingBranding ? "Saving..." : "Save and continue"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={customUnitsValidationOpen} onOpenChange={setCustomUnitsValidationOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Custom unit numbers are incomplete</DialogTitle>
+            <DialogDescription>
+              There {customUnitsValidationMissing === 1 ? "is" : "are"} {customUnitsValidationMissing} empty custom unit
+              {customUnitsValidationMissing === 1 ? "" : "s"}. Fill all unit numbers before saving, or change unit settings
+              back to Auto / disable multiple units.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setCustomUnitsValidationOpen(false)}>OK</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -689,76 +1320,4 @@ function ProjectFormFields({
   );
 }
 
-function ProductFormFields({
-  form,
-  onChange,
-}: {
-  form: ProductForm;
-  onChange: (form: ProductForm) => void;
-}) {
-  return (
-    <div className="space-y-4 py-1">
-      <div>
-        <Label className="text-sm mb-1.5 block">
-          Product Name <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          value={form.productName}
-          onChange={(e) => onChange({ ...form, productName: e.target.value })}
-          placeholder="e.g. Pressure Vessel V-4501"
-          className="bg-input/50"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label className="text-sm mb-1.5 block">
-            Tag Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            value={form.tagNumber}
-            onChange={(e) => onChange({ ...form, tagNumber: e.target.value })}
-            placeholder="e.g. V-4501"
-            className="bg-input/50 font-[var(--font-mono)]"
-          />
-        </div>
-        <div>
-          <Label className="text-sm mb-1.5 block">
-            MDB Document Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            value={form.mdbDocumentNumber}
-            onChange={(e) => onChange({ ...form, mdbDocumentNumber: e.target.value })}
-            placeholder="e.g. MDB-2024-001"
-            className="bg-input/50 font-[var(--font-mono)]"
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label className="text-sm mb-1.5 block">
-            Supplier Name{" "}
-            <span className="text-muted-foreground text-xs">(optional)</span>
-          </Label>
-          <Input
-            value={form.supplierName}
-            onChange={(e) => onChange({ ...form, supplierName: e.target.value })}
-            placeholder="e.g. ACME Fabrication"
-            className="bg-input/50"
-          />
-        </div>
-        <div>
-          <Label className="text-sm mb-1.5 block">
-            Supplier Project No.{" "}
-            <span className="text-muted-foreground text-xs">(optional)</span>
-          </Label>
-          <Input
-            value={form.supplierProjectNumber}
-            onChange={(e) => onChange({ ...form, supplierProjectNumber: e.target.value })}
-            placeholder="e.g. SP-2024-77"
-            className="bg-input/50 font-[var(--font-mono)]"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+

@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import { requireAuth } from "./middleware/auth.js";
 import projectsRouter from "./routes/projects.js";
 import productsRouter from "./routes/products.js";
+import libraryRouter from "./routes/library.js";
+import brandingRouter from "./routes/branding.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,11 +15,13 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  app.use(express.json());
+  app.use(express.json({ limit: "10mb" }));
 
   // API routes
   app.use("/api/projects", requireAuth, projectsRouter);
   app.use("/api/products", requireAuth, productsRouter);
+  app.use("/api/library", requireAuth, libraryRouter);
+  app.use("/api/branding", requireAuth, brandingRouter);
 
   // Serve static files from dist/public in production
   const staticPath =

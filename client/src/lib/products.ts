@@ -1,21 +1,31 @@
 import { supabase } from "./supabase";
+import type { ProjectDocumentStyle } from "./document-styles";
+
+export type UnitNumberingMode = "auto" | "custom";
 
 export interface Product {
   id: string;
   projectId: string;
   productName: string;
-  tagNumber: string;
-  mdbDocumentNumber: string;
-  supplierName: string | null;
-  supplierProjectNumber: string | null;
+  tagNumber: string | null;
+  mdbDocumentNumber: string | null;
+  unitsEnabled: boolean;
+  unitCount: number;
+  unitNumberingMode: UnitNumberingMode;
+  customUnitNumbers: string[] | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface ProductWithMdb extends Product {
   mdbData: object | null;
+  projectNumber: string;
   projectName: string;
   projectCustomerName: string;
+  projectCustomerProjectNumber: string | null;
+  coverStyle: ProjectDocumentStyle["coverStyle"];
+  dividerStyle: ProjectDocumentStyle["dividerStyle"];
+  fontFamily: ProjectDocumentStyle["fontFamily"];
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -49,25 +59,36 @@ export async function getProduct(id: string): Promise<{
   product: ProductWithMdb | null;
   error: string | null;
 }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
   try {
     const res = await fetch(`/api/products/${id}`, {
       headers: await authHeaders(),
+      signal: controller.signal,
     });
     if (!res.ok) throw new Error(await res.text());
     const body = await res.json();
     return { product: body.product ?? null, error: null };
   } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return { product: null, error: "Request timed out while loading product" };
+    }
     return { product: null, error: String(e) };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 export async function createProduct(data: {
   projectId: string;
   productName: string;
-  tagNumber: string;
-  mdbDocumentNumber: string;
-  supplierName?: string;
-  supplierProjectNumber?: string;
+  tagNumber?: string | null;
+  mdbDocumentNumber?: string | null;
+  unitsEnabled?: boolean;
+  unitCount?: number;
+  unitNumberingMode?: UnitNumberingMode;
+  customUnitNumbers?: string[] | null;
 }): Promise<{ product: Product | null; error: string | null }> {
   try {
     const res = await fetch("/api/products", {
@@ -87,10 +108,12 @@ export async function updateProduct(
   id: string,
   data: Partial<{
     productName: string;
-    tagNumber: string;
-    mdbDocumentNumber: string;
-    supplierName: string | null;
-    supplierProjectNumber: string | null;
+    tagNumber: string | null;
+    mdbDocumentNumber: string | null;
+    unitsEnabled: boolean;
+    unitCount: number;
+    unitNumberingMode: UnitNumberingMode;
+    customUnitNumbers: string[] | null;
   }>
 ): Promise<{ product: Product | null; error: string | null }> {
   try {

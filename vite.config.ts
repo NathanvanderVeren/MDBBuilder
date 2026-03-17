@@ -150,6 +150,8 @@ function vitePluginManusDebugCollector(): Plugin {
 }
 
 const plugins = [react(), tailwindcss(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const apiPort = process.env.VITE_API_PORT || "3001";
+const apiProxyTarget = `http://localhost:${apiPort}`;
 
 export default defineConfig({
   plugins,
@@ -171,7 +173,7 @@ export default defineConfig({
     strictPort: false, // Will find next available port if 3000 is busy
     host: true,
     proxy: {
-      "/api": "http://localhost:3001",
+      "/api": apiProxyTarget,
     },
     allowedHosts: [
       ".manuspre.computer",

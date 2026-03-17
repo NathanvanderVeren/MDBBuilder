@@ -10,6 +10,8 @@ import Landing from "./pages/Landing";
 import Projects from "./pages/Projects";
 import Builder from "./pages/Builder";
 import AuthCallback from "./pages/AuthCallback";
+import ResetPassword from "./pages/ResetPassword";
+import RequiredEmailDialog from "./components/RequiredEmailDialog";
 
 function Router() {
   return (
@@ -18,6 +20,7 @@ function Router() {
       <Route path="/projects" component={Projects} />
       <Route path="/builder/:productId" component={Builder} />
       <Route path="/auth/callback" component={AuthCallback} />
+      <Route path="/auth/reset-password" component={ResetPassword} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -33,6 +36,7 @@ function App() {
             <TooltipProvider>
               <Toaster />
               <Router />
+              <RequiredEmailDialog />
             </TooltipProvider>
           </MdbProvider>
         </AuthProvider>

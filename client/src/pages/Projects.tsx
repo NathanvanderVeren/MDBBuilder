@@ -88,7 +88,7 @@ const emptyProjectForm = (): ProjectForm => ({
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function Projects() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, requiresEmailVerification } = useAuth();
   const [, navigate] = useLocation();
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -173,11 +173,17 @@ export default function Projects() {
     setBrandingBaseline(loadedBranding);
     setWelcomeBaseline(loadedBranding);
 
-    if (branding.isFirstTime) {
+    if (branding.isFirstTime && !requiresEmailVerification) {
       setWelcomeBaseline(loadedBranding);
       setWelcomeOpen(true);
     }
   }
+
+  useEffect(() => {
+    if (requiresEmailVerification && welcomeOpen) {
+      setWelcomeOpen(false);
+    }
+  }, [requiresEmailVerification, welcomeOpen]);
 
   const hasUnsavedBrandingChanges = useCallback((baseline: BrandingSettings | null) => {
     if (!baseline) return false;
@@ -690,7 +696,9 @@ export default function Projects() {
               Settings
             </Button>
             <ThemeToggle />
-            <span className="text-sm text-muted-foreground hidden sm:block">{user.email}</span>
+            {user.email && (
+              <span className="text-sm text-muted-foreground hidden sm:block">{user.email}</span>
+            )}
             <Button
               variant="ghost"
               size="sm"

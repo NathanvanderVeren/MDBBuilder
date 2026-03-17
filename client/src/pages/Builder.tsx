@@ -167,13 +167,13 @@ function CoverStylePreview({
           <div className="text-[10px] uppercase tracking-[0.25em] text-white/70">Cover</div>
           <div className="mt-7 text-2xl font-bold">MDB</div>
         </div>
-        <div className="flex flex-col justify-between bg-card p-3">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Manufacturing Data Book</div>
+        <div className="flex flex-col justify-between p-3" style={{ backgroundColor: '#ffffff' }}>
+          <div className="text-[10px] uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Manufacturing Data Book</div>
           <div className="space-y-1">
-            <div className="text-sm font-semibold text-foreground">Project Atlas Compressor</div>
-            <div className="text-xs text-muted-foreground">Unit package documentation preview</div>
+            <div className="text-sm font-semibold" style={{ color: '#0f172a' }}>Project Atlas Compressor</div>
+            <div className="text-xs" style={{ color: '#64748b' }}>Unit package documentation preview</div>
           </div>
-          <div className="text-[10px] text-muted-foreground">{companyName || "Your Company"}</div>
+          <div className="text-[10px]" style={{ color: '#64748b' }}>{companyName || "Your Company"}</div>
         </div>
       </div>
     );
@@ -181,32 +181,32 @@ function CoverStylePreview({
 
   if (style === "angled") {
     return (
-      <div className="relative h-28 overflow-hidden bg-card p-3" style={{ fontFamily: previewFont }}>
+      <div className="relative h-28 overflow-hidden p-3" style={{ fontFamily: previewFont, backgroundColor: '#ffffff' }}>
         <div
           className="absolute -right-6 -top-6 h-24 w-32 rotate-[-18deg] rounded-sm opacity-90"
           style={{ backgroundColor: color }}
         />
         <div className="relative z-10 flex h-full flex-col justify-between">
-          <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Project Style</div>
+          <div className="text-[10px] uppercase tracking-[0.24em]" style={{ color: '#64748b' }}>Project Style</div>
           <div>
-            <div className="text-lg font-bold text-foreground">Manufacturing Data Book</div>
-            <div className="mt-1 text-xs text-muted-foreground">Technical dossier with angled identity band</div>
+            <div className="text-lg font-bold" style={{ color: '#0f172a' }}>Manufacturing Data Book</div>
+            <div className="mt-1 text-xs" style={{ color: '#64748b' }}>Technical dossier with angled identity band</div>
           </div>
-          <div className="text-[10px] text-muted-foreground">{companyName || "Your Company"}</div>
+          <div className="text-[10px]" style={{ color: '#64748b' }}>{companyName || "Your Company"}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-28 bg-card" style={{ fontFamily: previewFont }}>
+    <div className="h-28" style={{ fontFamily: previewFont, backgroundColor: '#ffffff' }}>
       <div className="h-7" style={{ backgroundColor: color }} />
       <div className="space-y-2 p-3">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Classic Cover</div>
-        <div className="text-lg font-bold text-foreground">Manufacturing Data Book</div>
-        <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
-          <div className="rounded bg-muted/30 px-2 py-1">Project data</div>
-          <div className="rounded bg-muted/30 px-2 py-1">Product data</div>
+        <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: '#64748b' }}>Classic Cover</div>
+        <div className="text-lg font-bold" style={{ color: '#0f172a' }}>Manufacturing Data Book</div>
+        <div className="grid grid-cols-2 gap-2 text-[10px]" style={{ color: '#64748b' }}>
+          <div className="rounded px-2 py-1" style={{ backgroundColor: '#f1f5f9' }}>Project data</div>
+          <div className="rounded px-2 py-1" style={{ backgroundColor: '#f1f5f9' }}>Product data</div>
         </div>
       </div>
     </div>
@@ -231,8 +231,8 @@ function DividerStylePreview({
           <div className="text-[10px] uppercase tracking-[0.18em] text-white/70">Chapter</div>
           <div className="mt-1 text-3xl font-bold">03</div>
         </div>
-        <div className="flex h-10 items-center bg-card px-3">
-          <div className="text-sm font-semibold text-foreground">Welder Qualifications</div>
+        <div className="flex h-10 items-center px-3" style={{ backgroundColor: '#ffffff' }}>
+          <div className="text-sm font-semibold" style={{ color: '#0f172a' }}>Welder Qualifications</div>
         </div>
       </div>
     );
@@ -240,23 +240,23 @@ function DividerStylePreview({
 
   if (style === "minimal") {
     return (
-      <div className="relative h-24 bg-card p-3" style={{ fontFamily: previewFont }}>
+      <div className="relative h-24 p-3" style={{ fontFamily: previewFont, backgroundColor: '#ffffff' }}>
         <div className="absolute left-0 top-0 h-full w-1" style={{ backgroundColor: color }} />
         <div className="flex h-full flex-col justify-center gap-1 pl-3">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">03.2</div>
-          <div className="text-sm font-semibold text-foreground">Welder Qualifications</div>
-          <div className="text-[10px] text-muted-foreground">Minimal metadata treatment</div>
+          <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: '#64748b' }}>03.2</div>
+          <div className="text-sm font-semibold" style={{ color: '#0f172a' }}>Welder Qualifications</div>
+          <div className="text-[10px]" style={{ color: '#64748b' }}>Minimal metadata treatment</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative h-24 overflow-hidden bg-card" style={{ fontFamily: previewFont }}>
+    <div className="relative h-24 overflow-hidden" style={{ fontFamily: previewFont, backgroundColor: '#ffffff' }}>
       <div className="absolute left-0 top-0 h-full w-3" style={{ backgroundColor: color }} />
       <div className="flex h-full flex-col justify-center gap-1 px-4 pl-7">
-        <div className="text-3xl font-bold text-muted-foreground/40">03</div>
-        <div className="text-sm font-semibold text-foreground">Welding Procedures</div>
+        <div className="text-3xl font-bold" style={{ color: '#94a3b8' }}>03</div>
+        <div className="text-sm font-semibold" style={{ color: '#0f172a' }}>Welding Procedures</div>
       </div>
     </div>
   );

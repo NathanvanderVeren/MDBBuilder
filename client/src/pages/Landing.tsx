@@ -483,12 +483,6 @@ export default function Landing() {
                 onClick={() => setLoginOpen(true)}
                 className="text-base px-10"
               >
-                <svg className="mr-2 h-5 w-5" viewBox="0 0 21 21" fill="none">
-                  <rect width="10" height="10" fill="#F25022" />
-                  <rect x="11" width="10" height="10" fill="#7FBA00" />
-                  <rect y="11" width="10" height="10" fill="#00A4EF" />
-                  <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
-                </svg>
                 Get Started Free
               </Button>
             )}

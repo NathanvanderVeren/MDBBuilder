@@ -27,12 +27,26 @@ export default function AuthCallback() {
       return;
     }
 
+    // Email verification flow: token_hash + type (signup confirmation, magic link, recovery, etc.)
+    const token_hash = params.get("token_hash");
+    const type = params.get("type");
+    if (token_hash && type) {
+      supabase.auth.verifyOtp({ token_hash, type: type as Parameters<typeof supabase.auth.verifyOtp>[0]["type"] }).then(({ error }) => {
+        if (error) setError(error.message);
+        else if (type === "recovery") window.location.href = "/auth/reset-password";
+        else window.location.href = "/";
+      });
+      return;
+    }
+
     // Implicit flow: tokens in URL hash (used by Supabase Azure provider)
     const access_token = hash.get("access_token");
     const refresh_token = hash.get("refresh_token");
+    const hashType = hash.get("type");
     if (access_token && refresh_token) {
       supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
         if (error) setError(error.message);
+        else if (hashType === "recovery") window.location.href = "/auth/reset-password";
         else window.location.href = "/";
       });
       return;

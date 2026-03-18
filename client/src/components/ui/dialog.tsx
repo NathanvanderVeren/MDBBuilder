@@ -3,6 +3,14 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import * as React from "react";
 
+type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content>;
+type DialogPointerDownOutsideEvent = Parameters<
+  NonNullable<DialogContentProps["onPointerDownOutside"]>
+>[0];
+type DialogInteractOutsideEvent = Parameters<
+  NonNullable<DialogContentProps["onInteractOutside"]>
+>[0];
+
 // Context to track composition state across dialog children
 const DialogCompositionContext = React.createContext<{
   isComposing: () => boolean;
@@ -97,7 +105,7 @@ function DialogContent({
   onPointerDownOutside,
   onInteractOutside,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+}: DialogContentProps & {
   showCloseButton?: boolean;
 }) {
   const { isComposing } = useDialogComposition();
@@ -121,7 +129,7 @@ function DialogContent({
   );
 
   const handlePointerDownOutside = React.useCallback(
-    (e: Event) => {
+    (e: DialogPointerDownOutsideEvent) => {
       // Keep dialogs open when clicking outside.
       e.preventDefault();
       onPointerDownOutside?.(e);
@@ -130,7 +138,7 @@ function DialogContent({
   );
 
   const handleInteractOutside = React.useCallback(
-    (e: Event) => {
+    (e: DialogInteractOutsideEvent) => {
       // Keep dialogs open when interacting outside.
       e.preventDefault();
       onInteractOutside?.(e);

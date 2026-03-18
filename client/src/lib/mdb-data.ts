@@ -14,34 +14,49 @@ export type SectionCategory = string;
 
 export const DEFAULT_SECTION_CATEGORIES = [
   "general",
+  "engineering",
+  "datasheets",
   "materials",
   "welding",
+  "heattreatment",
   "ndt",
+  "hydrotesting",
   "testing",
   "coating",
-  "drawings",
+  "valves",
+  "instruments",
   "certificates",
 ] as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  general: "#3B82F6",     // blue
+  general: "#14B8A6",     // teal
+  engineering: "#2563EB", // blue-600
+  datasheets: "#0EA5E9",  // sky
   materials: "#10B981",   // emerald
   welding: "#F59E0B",     // amber
+  heattreatment: "#DC2626", // red-600
   ndt: "#8B5CF6",         // violet
+  hydrotesting: "#0284C7", // light blue
   testing: "#EC4899",     // pink
   coating: "#06B6D4",     // cyan
-  drawings: "#F97316",    // orange
+  valves: "#F97316",      // orange
+  instruments: "#14B8A6", // teal
   certificates: "#6366F1" // indigo
 };
 
 export const CATEGORY_LABELS: Record<string, string> = {
   general: "General",
+  engineering: "Engineering",
+  datasheets: "Data Sheets",
   materials: "Materials",
   welding: "Welding",
+  heattreatment: "Heat Treatment",
   ndt: "NDT/NDE",
+  hydrotesting: "Hydrostatic Testing",
   testing: "Testing",
   coating: "Coating & Paint",
-  drawings: "Drawings",
+  valves: "Valves",
+  instruments: "Instruments",
   certificates: "Certificates"
 };
 
@@ -52,14 +67,7 @@ export const ALL_SECTIONS: MdbSection[] = [
     code: "ITP",
     category: "general",
     description: "Master document listing all inspection and test activities, hold/witness/review points, and acceptance criteria.",
-    suggestedSections: ["qcp"]
-  },
-  {
-    id: "qcp",
-    title: "Quality Control Plan (QCP)",
-    code: "QCP",
-    category: "general",
-    description: "Defines quality requirements, responsibilities, and procedures for the project scope.",
+    suggestedSections: ["doc-schedule", "project-planning"]
   },
   {
     id: "mdb-index",
@@ -69,19 +77,138 @@ export const ALL_SECTIONS: MdbSection[] = [
     description: "Master index listing all documents included in the Manufacturing Data Book with revision status."
   },
   {
+    id: "doc-schedule",
+    title: "Document Schedule",
+    code: "DCS",
+    category: "general",
+    description: "Planned submission schedule listing each deliverable, revision, and required issue dates."
+  },
+  {
+    id: "project-planning",
+    title: "Project Planning",
+    code: "PLN",
+    category: "general",
+    description: "Project planning package covering milestones, fabrication sequence, and key interfaces."
+  },
+  {
+    id: "process-description",
+    title: "Process Description",
+    code: "PRD",
+    category: "general",
+    description: "Narrative describing process intent, system boundaries, and operational philosophy."
+  },
+  {
+    id: "cause-effect",
+    title: "Cause & Effect Diagram",
+    code: "CED",
+    category: "general",
+    description: "Cause and effect matrix linking alarms/trips to control system actions and final elements."
+  },
+  {
+    id: "control-narratives",
+    title: "Control Narratives",
+    code: "CTN",
+    category: "general",
+    description: "Detailed narratives defining control loops, permissives, interlocks, and start-up/shutdown logic."
+  },
+  {
+    id: "spare-parts",
+    title: "Spare Parts List",
+    code: "SPL",
+    category: "general",
+    description: "Recommended commissioning and operational spares with quantities, part numbers, and lead times."
+  },
+  {
+    id: "iom-manual",
+    title: "Installation, Operation & Maintenance Manual",
+    code: "IOM",
+    category: "general",
+    description: "Manual covering installation instructions, operating limits, and routine maintenance requirements."
+  },
+  {
+    id: "ga-dwg",
+    title: "General Arrangement Drawing",
+    code: "GAD",
+    category: "engineering",
+    description: "Overall layout drawing showing principal dimensions, interfaces, and equipment orientation."
+  },
+  {
+    id: "detail-dwg",
+    title: "Detail Drawing",
+    code: "DDW",
+    category: "engineering",
+    description: "Detail fabrication drawings with dimensions, tolerances, weld symbols, and notes."
+  },
+  {
+    id: "pid-dwg",
+    title: "P&ID Drawing",
+    code: "PID",
+    category: "engineering",
+    description: "Piping and instrumentation diagrams defining process lines, instruments, and control functions."
+  },
+  {
+    id: "iso-metric-dwg",
+    title: "ISO Metric Drawings",
+    code: "ISO",
+    category: "engineering",
+    description: "Isometric style piping/fabrication drawings including spool dimensions and support references."
+  },
+  {
+    id: "strength-calc",
+    title: "Strength Calculations",
+    code: "STC",
+    category: "engineering",
+    description: "Design calculations verifying structural integrity, allowable stresses, and code compliance."
+  },
+  {
+    id: "as-built",
+    title: "As-Built Drawings",
+    code: "ABD",
+    category: "engineering",
+    description: "Final drawings reflecting the actual as-fabricated/installed configuration."
+  },
+  {
+    id: "valve-ds",
+    title: "Valve Data Sheets",
+    code: "VDS",
+    category: "datasheets",
+    description: "Data sheets defining valve service conditions, design ratings, materials, and accessories."
+  },
+  {
+    id: "instrument-ds",
+    title: "Instrument Data Sheets",
+    code: "IDS",
+    category: "datasheets",
+    description: "Instrument specification sheets with process ranges, accuracy class, and communication protocol."
+  },
+  {
+    id: "equipment-ds",
+    title: "Equipment Data Sheets",
+    code: "EDS",
+    category: "datasheets",
+    description: "Mechanical equipment data sheets covering duty point, design conditions, and material classes."
+  },
+  {
+    id: "motor-ds",
+    title: "Motor Data Sheets",
+    code: "MDS",
+    category: "datasheets",
+    description: "Motor and drive data sheets with ratings, enclosure class, and electrical characteristics."
+  },
+  {
+    id: "mat-tab",
+    title: "Bill of Materials",
+    code: "BOM",
+    category: "materials",
+    description: "Bill of Materials with heat numbers, material grades, sizes, and traceability to MTCs."
+  },
+  {
     id: "mtc",
     title: "Material Test Certificates (MTC/MTR)",
     code: "MTC",
     category: "materials",
     description: "Mill test certificates per EN 10204 (3.1/3.2) documenting chemical composition and mechanical properties.",
     suggestedSections: ["mat-tab"]
-  },
-  {
-    id: "mat-tab",
-    title: "Material Tabulation / BOM",
-    code: "MAT",
-    category: "materials",
-    description: "Bill of Materials with heat numbers, material grades, sizes, and traceability to MTCs."
   },
   {
     id: "pos-mat",
@@ -122,6 +249,49 @@ export const ALL_SECTIONS: MdbSection[] = [
     description: "Drawing-based map identifying all weld joints with welder ID, WPS reference, and NDE requirements."
   },
   {
+    id: "preheat-proc",
+    title: "Pre Heat Procedure",
+    code: "PHP",
+    category: "heattreatment",
+    description: "Procedure defining preheat temperatures, soak requirements, heating methods, and monitoring controls."
+  },
+  {
+    id: "preheat-report",
+    title: "Pre Heat Reports",
+    code: "PHR",
+    category: "heattreatment",
+    description: "Execution records documenting achieved preheat temperatures, hold times, and monitored locations."
+  },
+  {
+    id: "pwht-proc",
+    title: "PWHT Procedure",
+    code: "PWP",
+    category: "heattreatment",
+    description: "Approved PWHT procedure including temperature ramp rates, soak times, cooling limits, and acceptance criteria."
+  },
+  {
+    id: "pwht",
+    title: "PWHT Report",
+    code: "PHT",
+    category: "heattreatment",
+    description: "PWHT execution report with time-temperature charts, cycle parameters, and final acceptance results.",
+    suggestedSections: ["pwht-proc", "thermocouple-cert"]
+  },
+  {
+    id: "thermocouple-cert",
+    title: "Thermocouple Certificates",
+    code: "TCC",
+    category: "heattreatment",
+    description: "Calibration and conformity certificates for thermocouples, data loggers, and heat treatment control equipment."
+  },
+  {
+    id: "ht-chart",
+    title: "Heat Treatment Charts",
+    code: "HTC",
+    category: "heattreatment",
+    description: "Recorded heat treatment charts providing traceable cycle evidence for each weld/component."
+  },
+  {
     id: "rt",
     title: "Radiographic Testing (RT) Reports",
     code: "RT",
@@ -150,6 +320,13 @@ export const ALL_SECTIONS: MdbSection[] = [
     description: "Liquid penetrant testing reports for surface-breaking defect detection."
   },
   {
+    id: "vt",
+    title: "Visual Testing (VT) Reports",
+    code: "VT",
+    category: "ndt",
+    description: "Visual examination records covering weld profile, surface condition, and workmanship acceptance."
+  },
+  {
     id: "ndt-proc",
     title: "NDE Procedures",
     code: "NDP",
@@ -165,11 +342,39 @@ export const ALL_SECTIONS: MdbSection[] = [
     description: "Certificates of NDE personnel per SNT-TC-1A, EN ISO 9712, or PCN."
   },
   {
+    id: "hydro-proc",
+    title: "Hydrostatic Testing Procedure",
+    code: "HTP",
+    category: "hydrotesting",
+    description: "Approved test procedure defining pressure levels, hold durations, venting, and safety controls."
+  },
+  {
     id: "hydro",
-    title: "Hydrostatic / Pressure Test Report",
+    title: "Hydrostatic Testing Report",
     code: "HYD",
-    category: "testing",
-    description: "Pressure test reports with test medium, pressure, duration, and acceptance criteria."
+    category: "hydrotesting",
+    description: "Executed hydrotest record with test pressure, hold time, leak checks, and acceptance status."
+  },
+  {
+    id: "hydro-cal-cert",
+    title: "Hydrotest Calibration Certificates",
+    code: "HCC",
+    category: "hydrotesting",
+    description: "Calibration certificates for pressure gauges, recorders, and test instrumentation used during hydrotesting."
+  },
+  {
+    id: "water-cert",
+    title: "Water Quality Certificate",
+    code: "WQC",
+    category: "hydrotesting",
+    description: "Certificate confirming test water chloride content and quality meet project/code limits."
+  },
+  {
+    id: "hydro-log",
+    title: "Hydrostatic Test Log & Punch List",
+    code: "HTL",
+    category: "hydrotesting",
+    description: "Consolidated hydrotest log with punch items, retest actions, and closeout status."
   },
   {
     id: "leak",
@@ -191,14 +396,6 @@ export const ALL_SECTIONS: MdbSection[] = [
     code: "IMP",
     category: "testing",
     description: "Charpy V-notch impact test results at specified temperatures."
-  },
-  {
-    id: "pwht",
-    title: "Post Weld Heat Treatment (PWHT)",
-    code: "PHT",
-    category: "testing",
-    description: "PWHT time-temperature charts and reports for stress relief or tempering.",
-    suggestedSections: ["wps"]
   },
   {
     id: "dim",
@@ -223,18 +420,60 @@ export const ALL_SECTIONS: MdbSection[] = [
     description: "Coating system specification with surface prep, primer, intermediate, and topcoat details."
   },
   {
-    id: "as-built",
-    title: "As-Built Drawings",
-    code: "ABD",
-    category: "drawings",
-    description: "Final drawings reflecting the actual as-fabricated/installed configuration."
+    id: "valve-index",
+    title: "Valve Index / Valve List",
+    code: "VLI",
+    category: "valves",
+    description: "Master valve register including tag numbers, line service, type, class, and actuation method."
   },
   {
-    id: "ga-dwg",
-    title: "General Arrangement Drawings",
-    code: "GAD",
-    category: "drawings",
-    description: "Overall layout and arrangement drawings showing equipment positioning and interfaces."
+    id: "valve-sizing",
+    title: "Valve Sizing Calculations",
+    code: "VSC",
+    category: "valves",
+    description: "Sizing calculations for control and relief valves based on process flow conditions and code rules."
+  },
+  {
+    id: "valve-inspection",
+    title: "Valve Inspection & Test Reports",
+    code: "VTR",
+    category: "valves",
+    description: "Incoming and final inspection/test records for valves including seat/leak and functional checks."
+  },
+  {
+    id: "valve-actuator",
+    title: "Valve Actuator Settings",
+    code: "VAS",
+    category: "valves",
+    description: "Actuator calibration, travel setting, and fail-safe configuration records for actuated valves."
+  },
+  {
+    id: "instr-index",
+    title: "Instrument Index",
+    code: "IIN",
+    category: "instruments",
+    description: "Tag index of all instruments including service, location, and control system I/O reference."
+  },
+  {
+    id: "loop-diagram",
+    title: "Instrument Loop Diagrams",
+    code: "ILD",
+    category: "instruments",
+    description: "Loop diagrams showing wiring, terminations, and functional signal paths from field to control system."
+  },
+  {
+    id: "instrument-cal",
+    title: "Instrument Calibration Reports",
+    code: "ICR",
+    category: "instruments",
+    description: "Calibration and as-left/as-found records for process instruments used in operation and safety functions."
+  },
+  {
+    id: "instrument-hookup",
+    title: "Instrument Hook-Up Details",
+    code: "IHD",
+    category: "instruments",
+    description: "Standard and project-specific hook-up details for instrument mounting, tubing, and cabling."
   },
   {
     id: "nameplate",
@@ -268,7 +507,7 @@ export const ALL_SECTIONS: MdbSection[] = [
     id: "cal-cert",
     title: "Calibration Certificates",
     code: "CAL",
-    category: "certificates",
+    category: "hydrotesting",
     description: "Calibration records for inspection and test equipment used during fabrication."
   },
   {
@@ -294,42 +533,42 @@ export const SECTOR_TEMPLATES: SectorTemplate[] = [
     name: "Pressure Vessels (ASME)",
     icon: "🔧",
     description: "Complete MDB for ASME coded pressure vessels including U-1 data reports.",
-    sectionIds: ["mdb-index", "itp", "qcp", "mtc", "mat-tab", "wps", "pqr", "wpq", "weld-map", "rt", "ut", "mpi", "hydro", "hardness", "pwht", "dim", "paint", "as-built", "nameplate", "asme-dr", "ncr", "cal-cert", "third-party"]
+    sectionIds: ["mdb-index", "itp", "doc-schedule", "project-planning", "mtc", "mat-tab", "ga-dwg", "detail-dwg", "strength-calc", "wps", "pqr", "wpq", "weld-map", "preheat-proc", "preheat-report", "pwht-proc", "pwht", "thermocouple-cert", "ht-chart", "rt", "ut", "mpi", "vt", "hydro-proc", "hydro", "water-cert", "hardness", "dim", "paint", "as-built", "nameplate", "asme-dr", "ncr", "cal-cert", "third-party"]
   },
   {
     id: "offshore",
     name: "Offshore Structures",
     icon: "🌊",
     description: "MDB for offshore structural steel and piping per NORSOK / DNV standards.",
-    sectionIds: ["mdb-index", "itp", "qcp", "mtc", "mat-tab", "pos-mat", "wps", "pqr", "wpq", "weld-map", "rt", "ut", "mpi", "pt", "ndt-proc", "ndt-qual", "hydro", "hardness", "impact", "pwht", "dim", "paint", "paint-proc", "as-built", "ga-dwg", "ncr", "cal-cert", "third-party"]
+    sectionIds: ["mdb-index", "itp", "doc-schedule", "mtc", "mat-tab", "pos-mat", "ga-dwg", "detail-dwg", "strength-calc", "wps", "pqr", "wpq", "weld-map", "preheat-proc", "preheat-report", "pwht-proc", "pwht", "thermocouple-cert", "ht-chart", "rt", "ut", "mpi", "pt", "vt", "ndt-proc", "ndt-qual", "hydro-proc", "hydro", "water-cert", "hardness", "impact", "dim", "paint", "paint-proc", "as-built", "ncr", "cal-cert", "third-party"]
   },
   {
     id: "piping",
     name: "Process Piping",
     icon: "🔩",
     description: "MDB for process piping systems per ASME B31.3 or EN 13480.",
-    sectionIds: ["mdb-index", "itp", "mtc", "mat-tab", "pos-mat", "wps", "pqr", "wpq", "weld-map", "rt", "ut", "pt", "hydro", "leak", "pwht", "dim", "paint", "as-built", "ncr", "cal-cert"]
+    sectionIds: ["mdb-index", "itp", "process-description", "mtc", "mat-tab", "pos-mat", "pid-dwg", "iso-metric-dwg", "ga-dwg", "wps", "pqr", "wpq", "weld-map", "preheat-proc", "pwht-proc", "pwht", "thermocouple-cert", "rt", "ut", "pt", "vt", "hydro-proc", "hydro", "water-cert", "leak", "dim", "paint", "as-built", "valve-ds", "instrument-ds", "ncr", "cal-cert"]
   },
   {
     id: "heat-exchangers",
     name: "Heat Exchangers (TEMA)",
     icon: "🔥",
     description: "MDB for shell & tube heat exchangers per ASME VIII / TEMA standards.",
-    sectionIds: ["mdb-index", "itp", "qcp", "mtc", "mat-tab", "wps", "pqr", "wpq", "weld-map", "rt", "ut", "hydro", "hardness", "pwht", "dim", "paint", "as-built", "nameplate", "asme-dr", "ncr", "cal-cert", "third-party"]
+    sectionIds: ["mdb-index", "itp", "doc-schedule", "process-description", "mtc", "mat-tab", "ga-dwg", "detail-dwg", "strength-calc", "wps", "pqr", "wpq", "weld-map", "preheat-proc", "preheat-report", "pwht-proc", "pwht", "thermocouple-cert", "ht-chart", "rt", "ut", "vt", "hydro-proc", "hydro", "water-cert", "hardness", "dim", "paint", "as-built", "nameplate", "asme-dr", "ncr", "cal-cert", "third-party"]
   },
   {
     id: "storage-tanks",
     name: "Storage Tanks (API 650)",
     icon: "🛢️",
     description: "MDB for atmospheric storage tanks per API 650 / EN 14015.",
-    sectionIds: ["mdb-index", "itp", "mtc", "mat-tab", "wps", "pqr", "wpq", "weld-map", "rt", "mpi", "hydro", "dim", "paint", "paint-proc", "as-built", "nameplate", "ncr", "cal-cert"]
+    sectionIds: ["mdb-index", "itp", "doc-schedule", "mtc", "mat-tab", "ga-dwg", "detail-dwg", "wps", "pqr", "wpq", "weld-map", "rt", "mpi", "vt", "hydro-proc", "hydro", "water-cert", "dim", "paint", "paint-proc", "as-built", "nameplate", "ncr", "cal-cert"]
   },
   {
     id: "ped-equipment",
     name: "PED Equipment (EU)",
     icon: "🇪🇺",
     description: "MDB for pressure equipment under the European Pressure Equipment Directive 2014/68/EU.",
-    sectionIds: ["mdb-index", "itp", "qcp", "mtc", "mat-tab", "wps", "pqr", "wpq", "weld-map", "rt", "ut", "hydro", "hardness", "impact", "pwht", "dim", "paint", "as-built", "nameplate", "ped-doc", "ncr", "cal-cert", "third-party"]
+    sectionIds: ["mdb-index", "itp", "doc-schedule", "process-description", "mtc", "mat-tab", "ga-dwg", "detail-dwg", "strength-calc", "wps", "pqr", "wpq", "weld-map", "preheat-proc", "preheat-report", "pwht-proc", "pwht", "thermocouple-cert", "ht-chart", "rt", "ut", "vt", "hydro-proc", "hydro", "water-cert", "hardness", "impact", "dim", "paint", "as-built", "nameplate", "ped-doc", "ncr", "cal-cert", "third-party"]
   }
 ];
 

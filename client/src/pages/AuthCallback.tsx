@@ -1,6 +1,20 @@
 import { useEffect, useState } from "react";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { supabase } from "@/lib/supabase";
+
+const EMAIL_OTP_TYPES = [
+  "signup",
+  "invite",
+  "magiclink",
+  "recovery",
+  "email_change",
+  "email",
+] as const satisfies readonly EmailOtpType[];
+
+function isEmailOtpType(value: string): value is EmailOtpType {
+  return EMAIL_OTP_TYPES.includes(value as EmailOtpType);
+}
 
 export default function AuthCallback() {
   const [, navigate] = useLocation();
@@ -31,7 +45,12 @@ export default function AuthCallback() {
     const token_hash = params.get("token_hash");
     const type = params.get("type");
     if (token_hash && type) {
-      supabase.auth.verifyOtp({ token_hash, type: type as Parameters<typeof supabase.auth.verifyOtp>[0]["type"] }).then(({ error }) => {
+      if (!isEmailOtpType(type)) {
+        setError(`Unsupported auth callback type: ${type}`);
+        return;
+      }
+
+      supabase.auth.verifyOtp({ token_hash, type }).then(({ error }) => {
         if (error) setError(error.message);
         else if (type === "recovery") window.location.href = "/auth/reset-password";
         else window.location.href = "/";
